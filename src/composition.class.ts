@@ -1,8 +1,15 @@
+import type { CompositionConstructor } from "./composition.interfaces";
+
 const IMAGE_WIDTH = 300;
 const IMAGE_HEIGHT = 400;
 
 export class Composition {
-  constructor(canvasId, imageSrc) {
+  canvas: HTMLCanvasElement | null;
+  canvasId: string;
+  imageSrc: string;
+  ctx: CanvasRenderingContext2D | null;
+
+  constructor({ canvasId, imageSrc }: CompositionConstructor) {
     this.canvasId = canvasId;
     this.imageSrc = imageSrc;
   }
@@ -13,8 +20,9 @@ export class Composition {
   }
 
   #initCanvas() {
-    this.canvas = document.getElementById(this.canvasId);
-    if (this.canvas.getContext) {
+    this.canvas = document.getElementById(this.canvasId) as HTMLCanvasElement;
+
+    if (this.canvas && this.canvas.getContext) {
       this.ctx = this.canvas.getContext("2d");
     }
   }
