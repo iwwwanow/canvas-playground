@@ -8,6 +8,7 @@ export class Composition {
   canvasId: string;
   imageSrc: string;
   ctx: CanvasRenderingContext2D | null;
+  img: HTMLImageElement | null;
 
   constructor({ canvasId, imageSrc }: CompositionConstructor) {
     this.canvasId = canvasId;
@@ -20,21 +21,28 @@ export class Composition {
   }
 
   #initCanvas() {
-    this.canvas = document.getElementById(this.canvasId) as HTMLCanvasElement;
+    this.canvas = document.getElementById(
+      this.canvasId,
+    ) as HTMLCanvasElement | null;
 
-    if (this.canvas && this.canvas.getContext) {
+    if (this.canvas) {
       this.ctx = this.canvas.getContext("2d");
     }
   }
 
   #initImage() {
-    // this.img = new Image();
     this.img = document.querySelector("#source");
-    this.img.style.display = "none";
-    this.img.onload = this.#onImageLoadHander();
+    if (this.img) {
+      this.img.style.display = "none";
+      this.img.onload = this.#onImageLoadHander();
+    }
   }
 
-  #onImageLoadHander() {
+  #onImageLoadHander(): void | null {
+    if (!this.ctx) throw new Error("ctx not defined");
+    if (!this.canvas) throw new Error("canvas not defined");
+    if (!this.img) throw new Error("img not defined");
+
     this.ctx.drawImage(this.img, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
 
     const imageData = this.ctx.getImageData(
@@ -111,11 +119,12 @@ export class Composition {
     );
 
     const layersData = [
-      backgroundLayerData,
+      // backgroundLayerData,
       redLayerData,
       greenLayerData,
       blueLayerData,
     ];
+
     let output2 = new Uint8ClampedArray(redLayerData.length);
 
     output2 = layersData.reduce((backgroundLayerData, forwardLayerData) => {
