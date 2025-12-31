@@ -2,10 +2,10 @@ import { Composition } from "../classes";
 import { Layer } from "../classes";
 import { Channel } from "../classes/composition.interfaces";
 
-import { CANVAS_ID } from "./poppies-1.constants";
-import { IMG_QUERY_SELECTOR } from "./poppies-1.constants";
+import { CANVAS_ID } from "./poppies-2.constants";
+import { IMG_QUERY_SELECTOR } from "./poppies-2.constants";
 
-export const drawPoppies1 = () => {
+export const drawPoppies2 = () => {
   const composition = new Composition({
     canvasId: CANVAS_ID,
     imgQuerySelector: IMG_QUERY_SELECTOR,
@@ -32,14 +32,14 @@ export const drawPoppies1 = () => {
   );
 
   composition.addColorLayer();
-  const redLayer = new Layer(redLayerArrayData);
-  composition.addLayer(redLayer);
+  const blueLayer = new Layer(blueLayerArrayData);
+  composition.addLayer(blueLayer);
 
   const greenLayer = new Layer(greenLayerArrayData);
   composition.addLayer(greenLayer);
 
-  const blueLayer = new Layer(blueLayerArrayData);
-  composition.addLayer(blueLayer);
+  const redLayer = new Layer(redLayerArrayData);
+  composition.addLayer(redLayer);
 
   composition.render();
 };
