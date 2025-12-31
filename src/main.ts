@@ -1,15 +1,7 @@
-import { Composition } from "./classes";
-
-const CANVAS_ID = "channels-canvas";
-const IMAGE_SRC = "assets/flowers.jpg";
+import { drawPoppies1 } from "./compositions";
 
 const bootstrap = () => {
-  const composition = new Composition({
-    canvasId: CANVAS_ID,
-    imageSrc: IMAGE_SRC,
-  });
-
-  composition.init();
+  drawPoppies1();
 };
 
 bootstrap();
