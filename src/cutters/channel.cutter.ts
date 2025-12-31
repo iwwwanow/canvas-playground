@@ -1,0 +1,33 @@
+import type { Channel } from "../classes/composition.interfaces";
+import { getChannelIndex } from "../utils";
+import { Pixel } from "../classes";
+
+const isNeededColor = (
+  neededColorIndex: number,
+  colorIndex: number,
+): boolean => {
+  return neededColorIndex === colorIndex;
+};
+
+// TODO: refactor; use Pixel
+// TODO: write test for it
+export const cutChannel = (data: Uint8ClampedArray, channel: Channel) => {
+  const neededColorIndex = getChannelIndex(channel);
+
+  const output = new Uint8ClampedArray(data.length);
+  for (let i = 0; i < data.length; i += 4) {
+    const redIndex = i;
+    const greenIndex = i + 1;
+    const blueIndex = i + 2;
+    const alphaIndex = i + 3;
+    const neededColorValue = data[i + neededColorIndex];
+
+    output[alphaIndex] = neededColorValue;
+
+    output[redIndex] = Number(isNeededColor(neededColorIndex, 0)) * 255;
+    output[greenIndex] = Number(isNeededColor(neededColorIndex, 1)) * 255;
+    output[blueIndex] = Number(isNeededColor(neededColorIndex, 2)) * 255;
+  }
+
+  return output;
+};
