@@ -1,0 +1,2 @@
+- debug-composition-class
+  - draw simple image with scale maybe 16px or smaller

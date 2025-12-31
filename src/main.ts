@@ -1,4 +1,4 @@
-import { Composition } from "./composition.class";
+import { Composition } from "./classes";
 
 const CANVAS_ID = "channels-canvas";
 const IMAGE_SRC = "assets/flowers.jpg";
@@ -8,6 +8,7 @@ const bootstrap = () => {
     canvasId: CANVAS_ID,
     imageSrc: IMAGE_SRC,
   });
+
   composition.init();
 };
 
