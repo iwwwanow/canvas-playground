@@ -10,22 +10,22 @@ const IMAGE_HEIGHT = 400;
 export class Composition {
   canvas: HTMLCanvasElement | null;
   canvasId: string;
-  imageSrc: string;
   ctx: CanvasRenderingContext2D | null;
   img: HTMLImageElement | null;
+  imgQuerySelector: string;
   layers: Array<Layer>;
   imageData: ImageData | null;
   imageDataLength: number;
 
-  constructor({ canvasId, imageSrc }: CompositionConstructor) {
+  constructor({ canvasId, imgQuerySelector }: CompositionConstructor) {
     this.canvas = null;
     this.ctx = null;
     this.img = null;
+    this.imgQuerySelector = imgQuerySelector;
     this.imageData = null;
     this.imageDataLength = 0;
 
     this.canvasId = canvasId;
-    this.imageSrc = imageSrc;
 
     this.layers = [];
   }
@@ -39,7 +39,7 @@ export class Composition {
     this.ctx = this.canvas.getContext("2d");
 
     // TODO: constructor params
-    this.img = document.querySelector("#source");
+    this.img = document.querySelector(this.imgQuerySelector);
 
     if (!this.ctx) throw new Error("ctx not defined");
     if (!this.img) throw new Error("img not defined");

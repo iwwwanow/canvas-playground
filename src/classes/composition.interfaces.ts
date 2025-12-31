@@ -1,6 +1,6 @@
 export interface CompositionConstructor {
   canvasId: string;
-  imageSrc: string;
+  imgQuerySelector: string;
 }
 
 export enum Channel {
