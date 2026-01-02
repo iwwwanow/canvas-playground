@@ -1,6 +1,7 @@
 import { Composition } from "../classes";
 import { Layer } from "../classes";
 import { Channel } from "../classes/composition.interfaces";
+import { BlendMod } from "../classes/composition.interfaces";
 
 import { CANVAS_ID } from "./poppies-2.constants";
 import { IMG_QUERY_SELECTOR } from "./poppies-2.constants";
@@ -32,14 +33,18 @@ export const drawPoppies2 = () => {
   );
 
   composition.addColorLayer();
-  const blueLayer = new Layer(blueLayerArrayData);
-  composition.addLayer(blueLayer);
-
-  const greenLayer = new Layer(greenLayerArrayData);
-  composition.addLayer(greenLayer);
 
   const redLayer = new Layer(redLayerArrayData);
+  redLayer.setBlendMode(BlendMod.add);
   composition.addLayer(redLayer);
+
+  const greenLayer = new Layer(greenLayerArrayData);
+  greenLayer.setBlendMode(BlendMod.add);
+  composition.addLayer(greenLayer);
+
+  const blueLayer = new Layer(blueLayerArrayData);
+  blueLayer.setBlendMode(BlendMod.add);
+  composition.addLayer(blueLayer);
 
   composition.render();
 };
