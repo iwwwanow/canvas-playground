@@ -1,5 +1,5 @@
-import type { C } from "./classes/pixel.interfacess";
-import type { NC } from "./classes/pixel.interfacess";
+import type { C } from "./pixel.interfaces";
+import type { NC } from "./pixel.interfaces";
 
 export class Pixel {
   c: C;

@@ -17,34 +17,27 @@ export const drawPoppies2 = () => {
   const originalImageData = composition.imageData?.data;
   if (!originalImageData) throw new Error("image data not defined");
 
-  const redLayerArrayData = composition.cutChannel(
-    originalImageData,
-    Channel.Red,
-  );
+  let currentHue = 0;
+  // const hueStep = 0.4;
+  const hueStep = 1;
+  let animationFrameId: number | null = null;
+  let isAnimating = true;
 
-  const greenLayerArrayData = composition.cutChannel(
-    originalImageData,
-    Channel.Green,
-  );
+  const updateAnimation = () => {
+    if (!isAnimating) return;
 
-  const blueLayerArrayData = composition.cutChannel(
-    originalImageData,
-    Channel.Blue,
-  );
+    const hueLayerArrayData = composition.cutHue(originalImageData, currentHue);
+    const hueLayer = new Layer(hueLayerArrayData);
+    hueLayer.addHueNoize(0.2);
 
-  composition.addColorLayer();
+    composition.clearLayers();
+    // TODO: шлейф для предыдущих слоев
+    composition.addLayer(hueLayer);
+    composition.render();
 
-  const redLayer = new Layer(redLayerArrayData);
-  redLayer.setBlendMode(BlendMod.add);
-  composition.addLayer(redLayer);
+    currentHue = (currentHue + hueStep) % 360;
+    animationFrameId = requestAnimationFrame(updateAnimation);
+  };
 
-  const greenLayer = new Layer(greenLayerArrayData);
-  greenLayer.setBlendMode(BlendMod.add);
-  composition.addLayer(greenLayer);
-
-  const blueLayer = new Layer(blueLayerArrayData);
-  blueLayer.setBlendMode(BlendMod.add);
-  composition.addLayer(blueLayer);
-
-  composition.render();
+  animationFrameId = requestAnimationFrame(updateAnimation);
 };
