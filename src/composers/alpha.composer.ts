@@ -2,6 +2,7 @@ import { Pixel } from "../classes";
 import { getResultAlpha } from "../colors";
 import { getResultColors } from "../colors";
 
+// TODO: слишком глубокая вложенность фукнций. поднять все на этот уровень. оставить только её и math
 export const alphaCompose = (
   bgLayerData: Uint8ClampedArray,
   fgLayerData: Uint8ClampedArray,
