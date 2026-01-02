@@ -9,3 +9,8 @@ export enum Channel {
   Blue = "blue",
   Alpha = "alpha",
 }
+
+export enum BlendMod {
+  normal = "normal",
+  add = "add",
+}
