@@ -11,7 +11,10 @@ const isNeededColor = (
 
 // TODO: refactor; use Pixel
 // TODO: write test for it
-export const cutChannel = (data: Uint8ClampedArray, channel: Channel) => {
+export const cutChannel = (
+  data: Uint8ClampedArray,
+  channel: Channel,
+): Uint8ClampedArray => {
   const neededColorIndex = getChannelIndex(channel);
 
   const output = new Uint8ClampedArray(data.length);

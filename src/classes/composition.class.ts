@@ -5,6 +5,7 @@ import { Channel } from "./composition.interfaces";
 import { cutChannel } from "../cutters";
 import { Layer } from "./layer.class";
 import { BlendMod } from "./composition.interfaces";
+import { cutHue } from "../cutters";
 
 const IMAGE_WIDTH = 300;
 const IMAGE_HEIGHT = 400;
@@ -82,8 +83,13 @@ export class Composition {
     return layerData;
   }
 
-  cutChannel(data: Uint8ClampedArray, channel: Channel) {
+  cutChannel(data: Uint8ClampedArray, channel: Channel): Uint8ClampedArray {
     return cutChannel(data, channel);
+  }
+
+  // TODO: naming
+  cutHue(data: Uint8ClampedArray, neededHue: number): Uint8ClampedArray {
+    return cutHue(data, neededHue);
   }
 
   getMergedLayer(layers: Array<Layer>): Layer {
@@ -107,6 +113,10 @@ export class Composition {
     });
 
     return resultLayer;
+  }
+
+  clearLayers() {
+    this.layers = [];
   }
 
   render() {
