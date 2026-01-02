@@ -1,8 +1,10 @@
 import type { CompositionConstructor } from "./composition.interfaces";
 import { alphaCompose } from "../composers";
+import { addCompose } from "../composers";
 import { Channel } from "./composition.interfaces";
 import { cutChannel } from "../cutters";
 import { Layer } from "./layer.class";
+import { BlendMod } from "./composition.interfaces";
 
 const IMAGE_WIDTH = 300;
 const IMAGE_HEIGHT = 400;
@@ -84,24 +86,37 @@ export class Composition {
     return cutChannel(data, channel);
   }
 
-  mergeLayers(layers: Array<Layer>): Uint8ClampedArray {
-    const layersData = layers.map(({ data }) => data);
+  getMergedLayer(layers: Array<Layer>): Layer {
+    let resultLayer = new Layer(new Uint8ClampedArray(this.imageDataLength));
 
-    let output2 = new Uint8ClampedArray(this.imageDataLength);
-    output2 = layersData.reduce((bgLayer, fgLayer) =>
-      alphaCompose(bgLayer, fgLayer),
-    );
-    return output2;
+    resultLayer = layers.reduce((bgLayer, fgLayer) => {
+      const bgLayerData = bgLayer.data;
+      const fgLayerData = fgLayer.data;
+      let resultLayerData = new Uint8ClampedArray(this.imageDataLength);
+
+      switch (fgLayer.options?.blendMod) {
+        case BlendMod.add:
+          resultLayerData = addCompose(bgLayerData, fgLayerData);
+          break;
+        default:
+          resultLayerData = alphaCompose(bgLayerData, fgLayerData);
+          break;
+      }
+
+      return new Layer(resultLayerData);
+    });
+
+    return resultLayer;
   }
 
   render() {
     if (!this.ctx) throw new Error("ctx is not defined");
 
-    const mergedLayersArrayData = this.mergeLayers(this.layers);
+    const mergedLayer = this.getMergedLayer(this.layers);
 
     const mergedLayersImageData = new ImageData(
       // TODO: fix?
-      mergedLayersArrayData,
+      mergedLayer.data,
       IMAGE_WIDTH,
       IMAGE_HEIGHT,
     );
