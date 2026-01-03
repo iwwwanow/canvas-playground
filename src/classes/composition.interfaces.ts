@@ -1,6 +1,12 @@
 export interface CompositionConstructor {
   canvasId: string;
   imgQuerySelector: string;
+  options?: CompositionOpitons;
+}
+
+export interface CompositionOpitons {
+  width: number;
+  height: number;
 }
 
 export enum Channel {

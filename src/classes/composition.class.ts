@@ -6,7 +6,9 @@ import { cutChannel } from "../cutters";
 import { Layer } from "./layer.class";
 import { BlendMod } from "./composition.interfaces";
 import { cutHue } from "../cutters";
+import type { CompositionOpitons } from "./composition.interfaces";
 
+// TODO: pass it from props
 const IMAGE_WIDTH = 300;
 const IMAGE_HEIGHT = 400;
 
@@ -19,8 +21,10 @@ export class Composition {
   layers: Array<Layer>;
   imageData: ImageData | null;
   imageDataLength: number;
+  width: CompositionOpitons["width"];
+  height: CompositionOpitons["height"];
 
-  constructor({ canvasId, imgQuerySelector }: CompositionConstructor) {
+  constructor({ canvasId, imgQuerySelector, options }: CompositionConstructor) {
     this.canvas = null;
     this.ctx = null;
     this.img = null;
@@ -31,6 +35,9 @@ export class Composition {
     this.canvasId = canvasId;
 
     this.layers = [];
+
+    this.width = options?.width || IMAGE_WIDTH;
+    this.height = options?.height || IMAGE_HEIGHT;
   }
 
   init() {
@@ -46,7 +53,7 @@ export class Composition {
 
     if (!this.ctx) throw new Error("ctx not defined");
     if (!this.img) throw new Error("img not defined");
-    this.ctx.drawImage(this.img, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
+    this.ctx.drawImage(this.img, 0, 0, this.width, this.height);
 
     this.img.style.display = "none";
 
