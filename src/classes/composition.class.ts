@@ -103,8 +103,25 @@ export class Composition {
     let resultLayer = new Layer(new Uint8ClampedArray(this.imageDataLength));
 
     resultLayer = layers.reduce((bgLayer, fgLayer) => {
-      const bgLayerData = bgLayer.data;
-      const fgLayerData = fgLayer.data;
+      let bgLayerData = bgLayer.data;
+      let fgLayerData = fgLayer.data;
+
+      // TODO: refactor
+      if (bgLayer.options?.opacity) {
+        bgLayerData = bgLayerData.map((value, index) => {
+          if (index % 4 === 3) return value * bgLayer.options?.opacity;
+          return value;
+        });
+      }
+
+      // TODO: refactor
+      if (fgLayer.options?.opacity) {
+        fgLayerData = fgLayerData.map((value, index) => {
+          if (index % 4 === 3) return value * fgLayer.options?.opacity;
+          return value;
+        });
+      }
+
       let resultLayerData = new Uint8ClampedArray(this.imageDataLength);
 
       switch (fgLayer.options?.blendMod) {

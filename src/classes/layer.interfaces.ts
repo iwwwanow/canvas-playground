@@ -4,4 +4,5 @@ export interface LayerOptions {
   name?: string;
   position?: string;
   blendMod?: BlendMod;
+  opacity?: number;
 }
