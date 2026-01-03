@@ -1,15 +1,17 @@
 import { Composition } from "../classes";
 import { Layer } from "../classes";
-import { Channel } from "../classes/composition.interfaces";
-import { BlendMod } from "../classes/composition.interfaces";
 
-import { CANVAS_ID } from "./poppies-2.constants";
-import { IMG_QUERY_SELECTOR } from "./poppies-2.constants";
+import { CANVAS_ID } from "./poppies-4.constants";
+import { IMG_QUERY_SELECTOR } from "./poppies-4.constants";
 
-export const drawPoppies2 = () => {
+export const drawPoppies4 = () => {
   const composition = new Composition({
     canvasId: CANVAS_ID,
     imgQuerySelector: IMG_QUERY_SELECTOR,
+    options: {
+      width: 128,
+      height: 128,
+    },
   });
 
   composition.init();
