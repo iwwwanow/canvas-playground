@@ -15,6 +15,11 @@ export class Layer {
     this.options.blendMod = blendMod;
   }
 
+  setOpacity(opacity: number) {
+    if (!this.options) this.options = {};
+    this.options.opacity = opacity;
+  }
+
   // TODO: refactor
   addHueNoize(
     deviationCoefficient: number = 0.1,

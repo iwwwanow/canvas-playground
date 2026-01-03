@@ -41,4 +41,12 @@ export const drawPoppies4 = () => {
   };
 
   animationFrameId = requestAnimationFrame(updateAnimation);
+
+  const whiteLayer = new Layer(originalImageData.map(() => 255));
+  composition.addLayer(whiteLayer);
+
+  const opacityLayer = new Layer(originalImageData);
+  opacityLayer.setOpacity(0.2);
+  composition.addLayer(opacityLayer);
+  composition.render();
 };
