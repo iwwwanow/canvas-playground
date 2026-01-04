@@ -24,15 +24,39 @@ export const drawPoppies4 = () => {
   let animationFrameId: number | null = null;
   let isAnimating = false;
 
+  // TODO: trailing
+  // const maxTrailLength = 1; // Максимальное количество слоев в шлейфе
+  // const trailFadeFactor = 1.0; // Коэффициент затухания для каждого следующего слоя
+  // const trailLayers: Layer[] = []; // Хранилище слоев шлейфа
+
   const updateAnimation = () => {
     if (!isAnimating) return;
 
     const hueLayerArrayData = composition.cutHue(originalImageData, currentHue);
     const hueLayer = new Layer(hueLayerArrayData);
     hueLayer.addHueNoize(0.2);
+    hueLayer.setOpacity(1);
+
+    // trailLayers.unshift(hueLayer);
+
+    // if (trailLayers.length > maxTrailLength) {
+    //   trailLayers.pop();
+    // }
+
+    // trailLayers.forEach((layer, index) => {
+    //   // Чем старше слой, тем меньше opacity
+    //   // Экспоненциальное затухание: opacity = baseOpacity * (fadeFactor ^ index)
+    //   const opacity = Math.pow(1 - trailFadeFactor, index);
+    //   layer.setOpacity(opacity);
+    // });
 
     composition.clearLayers();
-    // TODO: шлейф для предыдущих слоев
+
+    // // TODO: шлейф для предыдущих слоев
+    // for (let i = trailLayers.length - 1; i >= 0; i--) {
+    //   composition.addLayer(trailLayers[i]);
+    // }
+
     composition.addLayer(hueLayer);
     composition.render();
 
