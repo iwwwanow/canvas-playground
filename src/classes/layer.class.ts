@@ -1,5 +1,5 @@
 import { BlendMod } from "./composition.interfaces";
-import type { LayerOptions } from "./layer.interfaces";
+import type { LayerOptions, TransformType } from "./layer.interfaces";
 
 export class Layer {
   options?: LayerOptions = {};
@@ -15,9 +15,19 @@ export class Layer {
     this.options.blendMod = blendMod;
   }
 
+  // TODO: ummutable or mutable?
+  setData(data: Uint8ClampedArray) {
+    this.data = data;
+  }
+
   setOpacity(opacity: number) {
     if (!this.options) this.options = {};
     this.options.opacity = opacity;
+  }
+
+  setTransform(type: TransformType, x, y) {
+    if (!this.options) this.options = {};
+    if (!this.options.transform) this.options.transform = { type, x, y };
   }
 
   // TODO: refactor

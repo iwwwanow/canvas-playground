@@ -1,4 +1,5 @@
 import type { CompositionConstructor } from "./composition.interfaces";
+import { translateTransform } from "../transformations";
 import { alphaCompose } from "../composers";
 import { addCompose } from "../composers";
 import { Channel } from "./composition.interfaces";
@@ -7,6 +8,7 @@ import { Layer } from "./layer.class";
 import { BlendMod } from "./composition.interfaces";
 import { cutHue } from "../cutters";
 import type { CompositionOpitons } from "./composition.interfaces";
+import { TransformType } from "./layer.interfaces";
 
 // TODO: pass it from props
 const IMAGE_WIDTH = 300;
@@ -143,10 +145,29 @@ export class Composition {
     this.layers = [];
   }
 
+  private getTransformedLayers(layers: Array<Layer>): Array<Layer> {
+    return layers.map((layer) => {
+      if (!layer.options?.transform) return layer;
+
+      switch (layer.options?.transform.type) {
+        case TransformType.Translate:
+          const { x, y } = layer.options.transform;
+          const transformedData = translateTransform(layer.data, x, y);
+          layer.setData(transformedData);
+
+          return layer;
+        default:
+          return layer;
+      }
+    });
+  }
+
   render() {
     if (!this.ctx) throw new Error("ctx is not defined");
 
-    const mergedLayer = this.getMergedLayer(this.layers);
+    const transformedLayers = this.getTransformedLayers(this.layers);
+
+    const mergedLayer = this.getMergedLayer(transformedLayers);
 
     const mergedLayersImageData = new ImageData(
       // TODO: fix?
