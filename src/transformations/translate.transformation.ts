@@ -1,8 +1,59 @@
+import { Pixel } from "../classes";
+
+class Matrix {
+  rawData: Array<[number, number, number, number]>;
+
+  constructor(width: number, height: number, data: Uint8ClampedArray) {
+    this.width = width;
+    this.height = height;
+    this.data = data.slice(width * height * 4);
+    this.rawData = Array.from({ length: this.width * this.height }, (_, i) => [
+      // TODO: fill color transparent?
+      255, 255, 255, 255,
+    ]);
+  }
+
+  setPixelValue(x: number, y: number, value: [number, number, number, number]) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return; // Просто игнорируем пиксели вне изображения
+    }
+
+    const pixelIndex = y * this.width + x;
+    this.rawData[pixelIndex] = value;
+  }
+
+  getUintData(): Uint8ClampedArray {
+    return new Uint8ClampedArray(this.rawData.flat(1));
+  }
+}
+
 export const translateTransform = (
   data: Uint8ClampedArray,
-  x,
-  y,
+  width: number,
+  height: number,
+  tx: number,
+  ty: number,
 ): Uint8ClampedArray => {
-  // TODO: matrix math
+  const imageMatrix = new Matrix(width, height, data);
+  const resultMatrix = new Matrix(width, height, new Uint8ClampedArray());
+
+  // TODO: use it to multiply
+  const affineData = new Uint8ClampedArray([1, 0, 0, 0, 1, 0, tx, ty, 1]);
+  const affineMatrix = new Matrix(3, 3, affineData);
+
+  const imageSize = width * height;
+  for (let pixelIndex = 0; pixelIndex < data.length; pixelIndex += 4) {
+    // TODO: use pixel class
+    const pixelValue = Pixel.getDataFromLayer(pixelIndex, data);
+
+    const pixelNum = pixelIndex / 4;
+    const pixelX = pixelNum % width;
+    const pixelY = Math.floor(pixelNum / width);
+    resultMatrix.setPixelValue(pixelX + tx, pixelY + ty, pixelValue);
+
+    // TODO: matrix operation
+  }
+
+  return resultMatrix.getUintData();
   return data;
 };
