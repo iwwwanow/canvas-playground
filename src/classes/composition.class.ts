@@ -152,7 +152,14 @@ export class Composition {
       switch (layer.options?.transform.type) {
         case TransformType.Translate:
           const { x, y } = layer.options.transform;
-          const transformedData = translateTransform(layer.data, x, y);
+
+          const transformedData = translateTransform(
+            layer.data,
+            this.width,
+            this.height,
+            x,
+            y,
+          );
           layer.setData(transformedData);
 
           return layer;
@@ -172,8 +179,8 @@ export class Composition {
     const mergedLayersImageData = new ImageData(
       // TODO: fix?
       mergedLayer.data,
-      IMAGE_WIDTH,
-      IMAGE_HEIGHT,
+      this.width,
+      this.height,
     );
 
     this.ctx.putImageData(mergedLayersImageData, 0, 0);

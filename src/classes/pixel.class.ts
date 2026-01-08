@@ -26,7 +26,7 @@ export class Pixel {
   static getDataFromLayer(
     pixelIndex: number,
     layerData: Uint8ClampedArray,
-  ): Array<number> {
+  ): [number, number, number, number] {
     return [
       layerData[pixelIndex],
       layerData[pixelIndex + 1],
