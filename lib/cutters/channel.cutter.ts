@@ -1,6 +1,5 @@
 import type { Channel } from "../classes/composition.interfaces";
 import { getChannelIndex } from "../utils";
-import { Pixel } from "../classes";
 
 const isNeededColor = (
   neededColorIndex: number,
