@@ -1,2 +1,2 @@
-import { drawPoppies1 } from "../../src/compositions";
+import { drawPoppies1 } from "../../lib";
 drawPoppies1();

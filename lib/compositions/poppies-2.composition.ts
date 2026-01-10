@@ -1,7 +1,5 @@
 import { Composition } from "../classes";
 import { Layer } from "../classes";
-import { Channel } from "../classes/composition.interfaces";
-import { BlendMod } from "../classes/composition.interfaces";
 
 import { CANVAS_ID } from "./poppies-2.constants";
 import { IMG_QUERY_SELECTOR } from "./poppies-2.constants";
