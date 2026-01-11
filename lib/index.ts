@@ -1,7 +1,6 @@
 export * from "./classes";
 export * from "./colors";
 export * from "./composers";
-export * from "./compositions";
 export * from "./cutters";
 export * from "./math";
 export * from "./transformations";
