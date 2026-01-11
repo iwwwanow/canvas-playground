@@ -5,14 +5,16 @@ import { TransformType } from "../../lib";
 
 const CANVAS_ID = "canvas-4";
 const IMG_QUERY_SELECTOR = "#source-4";
+const IMAGE_WIDTH = 128;
+const IMAGE_HEIGHT = 128;
 
 export const drawPoppies4 = () => {
   const composition = new Composition({
     canvasId: CANVAS_ID,
     imgQuerySelector: IMG_QUERY_SELECTOR,
     options: {
-      width: 128,
-      height: 128,
+      width: IMAGE_WIDTH,
+      height: IMAGE_HEIGHT,
     },
   });
 

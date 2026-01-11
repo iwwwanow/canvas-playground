@@ -4,11 +4,17 @@ import { Channel } from "../../lib";
 
 const CANVAS_ID = "canvas-1";
 const IMG_QUERY_SELECTOR = "#source-1";
+const IMAGE_WIDTH = 300;
+const IMAGE_HEIGHT = 400;
 
 const drawPoppies1 = () => {
   const composition = new Composition({
     canvasId: CANVAS_ID,
     imgQuerySelector: IMG_QUERY_SELECTOR,
+    options: {
+      width: IMAGE_WIDTH,
+      height: IMAGE_HEIGHT,
+    },
   });
 
   composition.init();

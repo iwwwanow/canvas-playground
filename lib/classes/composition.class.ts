@@ -10,9 +10,8 @@ import { cutHue } from "../cutters";
 import type { CompositionOpitons } from "./composition.interfaces";
 import { TransformType } from "./layer.interfaces";
 
-// TODO: pass it from props
-const IMAGE_WIDTH = 300;
-const IMAGE_HEIGHT = 400;
+const DEFAULT_WIDTH = 100;
+const DEFAULT_HEIGHT = 100;
 
 export class Composition {
   canvas: HTMLCanvasElement | null;
@@ -38,8 +37,8 @@ export class Composition {
 
     this.layers = [];
 
-    this.width = options?.width || IMAGE_WIDTH;
-    this.height = options?.height || IMAGE_HEIGHT;
+    this.width = options?.width || DEFAULT_WIDTH;
+    this.height = options?.height || DEFAULT_HEIGHT;
   }
 
   init() {
@@ -50,7 +49,6 @@ export class Composition {
     if (!this.canvas) throw new Error("canvas not defined");
     this.ctx = this.canvas.getContext("2d");
 
-    // TODO: constructor params
     this.img = document.querySelector(this.imgQuerySelector);
 
     if (!this.ctx) throw new Error("ctx not defined");
@@ -101,6 +99,7 @@ export class Composition {
     return cutHue(data, neededHue);
   }
 
+  // TODO: refactor
   getMergedLayer(layers: Array<Layer>): Layer {
     let resultLayer = new Layer(new Uint8ClampedArray(this.imageDataLength));
 

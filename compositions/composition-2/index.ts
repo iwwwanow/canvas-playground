@@ -3,11 +3,17 @@ import { Layer } from "../../lib";
 
 const CANVAS_ID = "canvas-2";
 const IMG_QUERY_SELECTOR = "#source-2";
+const IMAGE_WIDTH = 300;
+const IMAGE_HEIGHT = 400;
 
 const drawPoppies2 = () => {
   const composition = new Composition({
     canvasId: CANVAS_ID,
     imgQuerySelector: IMG_QUERY_SELECTOR,
+    options: {
+      width: IMAGE_WIDTH,
+      height: IMAGE_HEIGHT,
+    },
   });
 
   composition.init();
@@ -18,7 +24,8 @@ const drawPoppies2 = () => {
   let currentHue = 0;
   const hueStep = 1;
   let animationFrameId: number | null = null;
-  let isAnimating = false;
+  // TODO: startup onclick
+  let isAnimating = true;
 
   const updateAnimation = () => {
     if (!isAnimating) return;
