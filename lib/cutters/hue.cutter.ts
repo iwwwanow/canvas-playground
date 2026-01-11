@@ -1,4 +1,3 @@
-import { hexToRgb } from "../utils";
 import { rgbToHsv } from "../utils";
 import { Pixel } from "../classes";
 

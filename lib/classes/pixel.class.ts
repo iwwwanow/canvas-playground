@@ -23,6 +23,7 @@ export class Pixel {
     };
   }
 
+  // TODO: from uint 8 clamped array
   static getDataFromLayer(
     pixelIndex: number,
     layerData: Uint8ClampedArray,

@@ -1,18 +1,20 @@
-export const rgbToHsv = ([r, g, b]: [number, number, number]): [
-  number,
-  number,
-  number,
-] => {
-  r /= 255;
-  g /= 255;
-  b /= 255;
+import type { RgbaArray } from "../interfaces";
+import type { HsvArray } from "../interfaces";
+import type { HueValue } from "../interfaces";
+import type { SaturationValue } from "../interfaces";
+import type { ValueValue } from "../interfaces";
 
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
+export const rgbToHsv = ([r, g, b]: RgbaArray): HsvArray => {
+  const normalizedR = r / 255;
+  const normalizedG = g / 255;
+  const normalizedBlue = b / 255;
 
-  let h: number,
-    s: number,
-    v: number = max;
+  const max = Math.max(normalizedR, normalizedG, normalizedBlue);
+  const min = Math.min(normalizedR, normalizedG, normalizedBlue);
+
+  let h: HueValue;
+  let s: SaturationValue;
+  let v: ValueValue = max;
 
   const d = max - min;
 
@@ -22,19 +24,20 @@ export const rgbToHsv = ([r, g, b]: [number, number, number]): [
     h = 0; // Achromatic
   } else {
     switch (max) {
-      case r:
-        h = (g - b) / d + (g < b ? 6 : 0);
+      case normalizedR:
+        h =
+          (normalizedG - normalizedBlue) / d +
+          (normalizedG < normalizedBlue ? 6 : 0);
         break;
-      case g:
-        h = (b - r) / d + 2;
+      case normalizedG:
+        h = (normalizedBlue - normalizedR) / d + 2;
         break;
-      case b:
-        h = (r - g) / d + 4;
+      case normalizedBlue:
+        h = (normalizedR - normalizedG) / d + 4;
         break;
     }
     h /= 6;
   }
 
-  // Scale h, s, v to the required ranges
-  return [h * 360, s * 100, v * 100]; // HSV scale
+  return [h * 360, s * 100, v * 100];
 };
