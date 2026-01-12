@@ -9,7 +9,10 @@ export const cutHue = (
 
   const output = new Uint8ClampedArray(data.length);
   for (let i = 0; i < data.length; i += 4) {
-    const [pixelRed, pixelGreen, pixelBlue] = Pixel.getDataFromLayer(i, data);
+    const [pixelRed, pixelGreen, pixelBlue] = Pixel.getDataFromUintArray(
+      i,
+      data,
+    );
 
     const [pixelHue] = rgbToHsv([pixelRed, pixelGreen, pixelBlue]);
 

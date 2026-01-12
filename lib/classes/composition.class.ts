@@ -1,5 +1,4 @@
 import type { CompositionConstructor } from "./composition.interfaces";
-import { translateTransform } from "../transformations";
 import { alphaCompose } from "../composers";
 import { addCompose } from "../composers";
 import { Channel } from "./composition.interfaces";
@@ -8,7 +7,12 @@ import { Layer } from "./layer.class";
 import { BlendMod } from "./composition.interfaces";
 import { cutHue } from "../cutters";
 import type { CompositionOpitons } from "./composition.interfaces";
-import { TransformType } from "./layer.interfaces";
+import type { HexString } from "../interfaces";
+import { hexToRgba } from "../utils";
+import type { RgbaArray } from "../interfaces";
+import { transformedLayersMapper } from "../mappers";
+import { getSolidColorData } from "../colors";
+import { mergedLayerReducer } from "../reducers";
 
 const DEFAULT_WIDTH = 100;
 const DEFAULT_HEIGHT = 100;
@@ -70,24 +74,11 @@ export class Composition {
     this.layers.push(layer);
   }
 
-  // TODO: write it
-  addColorLayer() {
-    const blackLayer = new Layer(this.getBlackArrayData());
-    this.addLayer(blackLayer);
-  }
-
-  private getBlackArrayData(
-    // TODO: is it needed?
-    arrayLength: number = this.imageDataLength,
-  ): Uint8ClampedArray {
-    // INFO: fill alpha layer
-    let layerData = new Uint8ClampedArray(arrayLength).map((_, index) => {
-      if (index % 4 == 3) {
-        return 255;
-      }
-      return 0;
-    });
-    return layerData;
+  addColorLayer(color: HexString): void {
+    const rgbaArray = hexToRgba(color);
+    const colorLayerData = getSolidColorData(this.imageDataLength, rgbaArray);
+    const colorLayer = new Layer(colorLayerData);
+    this.addLayer(colorLayer);
   }
 
   cutChannel(data: Uint8ClampedArray, channel: Channel): Uint8ClampedArray {
@@ -102,41 +93,9 @@ export class Composition {
   // TODO: refactor
   getMergedLayer(layers: Array<Layer>): Layer {
     let resultLayer = new Layer(new Uint8ClampedArray(this.imageDataLength));
-
-    resultLayer = layers.reduce((bgLayer, fgLayer) => {
-      let bgLayerData = bgLayer.data;
-      let fgLayerData = fgLayer.data;
-
-      // TODO: refactor
-      if (bgLayer.options?.opacity) {
-        bgLayerData = bgLayerData.map((value, index) => {
-          if (index % 4 === 3) return value * bgLayer.options?.opacity;
-          return value;
-        });
-      }
-
-      // TODO: refactor
-      if (fgLayer.options?.opacity) {
-        fgLayerData = fgLayerData.map((value, index) => {
-          if (index % 4 === 3) return value * fgLayer.options?.opacity;
-          return value;
-        });
-      }
-
-      let resultLayerData = new Uint8ClampedArray(this.imageDataLength);
-
-      switch (fgLayer.options?.blendMod) {
-        case BlendMod.add:
-          resultLayerData = addCompose(bgLayerData, fgLayerData);
-          break;
-        default:
-          resultLayerData = alphaCompose(bgLayerData, fgLayerData);
-          break;
-      }
-
-      return new Layer(resultLayerData);
-    });
-
+    resultLayer = layers.reduce((bgLayer, fgLayer) =>
+      mergedLayerReducer(this.imageDataLength, bgLayer, fgLayer),
+    );
     return resultLayer;
   }
 
@@ -145,27 +104,9 @@ export class Composition {
   }
 
   private getTransformedLayers(layers: Array<Layer>): Array<Layer> {
-    return layers.map((layer) => {
-      if (!layer.options?.transform) return layer;
-
-      switch (layer.options?.transform.type) {
-        case TransformType.Translate:
-          const { x, y } = layer.options.transform;
-
-          const transformedData = translateTransform(
-            layer.data,
-            this.width,
-            this.height,
-            x,
-            y,
-          );
-          layer.setData(transformedData);
-
-          return layer;
-        default:
-          return layer;
-      }
-    });
+    return layers.map((layer) =>
+      transformedLayersMapper(layer, this.width, this.height),
+    );
   }
 
   render() {

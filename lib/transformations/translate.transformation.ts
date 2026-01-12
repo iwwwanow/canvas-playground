@@ -44,7 +44,7 @@ export const translateTransform = (
   const imageSize = width * height;
   for (let pixelIndex = 0; pixelIndex < data.length; pixelIndex += 4) {
     // TODO: use pixel class
-    const pixelValue = Pixel.getDataFromLayer(pixelIndex, data);
+    const pixelValue = Pixel.getDataFromUintArray(pixelIndex, data);
 
     const pixelNum = pixelIndex / 4;
     const pixelX = pixelNum % width;
