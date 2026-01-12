@@ -10,8 +10,8 @@ export const alphaCompose = (
   let output = new Array(bgLayerData.length);
 
   for (let pixelIndex = 0; pixelIndex < bgLayerData.length; pixelIndex += 4) {
-    const bgPixelData = Pixel.getDataFromLayer(pixelIndex, bgLayerData);
-    const fgPixelData = Pixel.getDataFromLayer(pixelIndex, fgLayerData);
+    const bgPixelData = Pixel.getDataFromUintArray(pixelIndex, bgLayerData);
+    const fgPixelData = Pixel.getDataFromUintArray(pixelIndex, fgLayerData);
 
     const bgPixel = new Pixel(bgPixelData);
     const fgPixel = new Pixel(fgPixelData);

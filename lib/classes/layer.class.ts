@@ -44,7 +44,7 @@ export class Layer {
     const output = new Uint8ClampedArray(this.data.length);
 
     for (let i = 0; i < this.data.length; i += 4) {
-      const [r, g, b, a] = Pixel.getDataFromLayer(i, this.data).map(
+      const [r, g, b, a] = Pixel.getDataFromUintArray(i, this.data).map(
         (i) => i / 255,
       );
 

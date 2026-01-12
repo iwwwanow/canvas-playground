@@ -38,7 +38,7 @@ const drawPoppies3 = () => {
     Channel.Blue,
   );
 
-  composition.addColorLayer();
+  composition.addColorLayer("#000000");
 
   const redLayer = new Layer(redLayerArrayData);
   redLayer.setBlendMode(BlendMod.add);
