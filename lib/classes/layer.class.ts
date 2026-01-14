@@ -3,6 +3,9 @@ import { BlendMod } from "./composition.interfaces";
 import type { LayerOptions, TransformType } from "./layer.interfaces";
 import { Pixel } from "./pixel.class";
 import { hslToRgb } from "../utils";
+import { LayerEffect } from "./layer.interfaces";
+import type { LayerEffectOptions } from "./layer.interfaces";
+import type { NoizeEffectOptions } from "./layer.interfaces";
 
 export class Layer {
   options?: LayerOptions = {};
@@ -32,11 +35,24 @@ export class Layer {
     if (!this.options.transform) this.options.transform = { type, x, y };
   }
 
-  // TODO: add effet: `effectName`
-  addHueNoize(
-    deviationCoefficient: number = 0.1,
-    preserveAlpha: boolean = true,
-  ) {
+  addEffect<T extends LayerEffect>(
+    effect: LayerEffect,
+    options: LayerEffectOptions[T],
+  ): void {
+    switch (effect) {
+      case LayerEffect.Noize: {
+        this.addHueNoize(options);
+      }
+      default: {
+        return;
+      }
+    }
+  }
+
+  private addHueNoize({
+    deviationCoefficient,
+    preserveAlpha,
+  }: NoizeEffectOptions): void {
     if (deviationCoefficient < 0 || deviationCoefficient > 1) {
       throw new Error("deviationCoefficient должен быть в диапазоне 0-1");
     }

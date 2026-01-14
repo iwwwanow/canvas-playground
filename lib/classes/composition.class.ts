@@ -1,15 +1,11 @@
 import type { CompositionConstructor } from "./composition.interfaces";
-import { alphaCompose } from "../composers";
-import { addCompose } from "../composers";
 import { Channel } from "./composition.interfaces";
 import { cutChannel } from "../cutters";
 import { Layer } from "./layer.class";
-import { BlendMod } from "./composition.interfaces";
 import { cutHue } from "../cutters";
 import type { CompositionOpitons } from "./composition.interfaces";
 import type { HexString } from "../interfaces";
 import { hexToRgba } from "../utils";
-import type { RgbaArray } from "../interfaces";
 import { transformedLayersMapper } from "../mappers";
 import { getSolidColorData } from "../colors";
 import { mergedLayerReducer } from "../reducers";
@@ -85,18 +81,8 @@ export class Composition {
     return cutChannel(data, channel);
   }
 
-  // TODO: naming
   cutHue(data: Uint8ClampedArray, neededHue: number): Uint8ClampedArray {
     return cutHue(data, neededHue);
-  }
-
-  // TODO: refactor
-  getMergedLayer(layers: Array<Layer>): Layer {
-    let resultLayer = new Layer(new Uint8ClampedArray(this.imageDataLength));
-    resultLayer = layers.reduce((bgLayer, fgLayer) =>
-      mergedLayerReducer(this.imageDataLength, bgLayer, fgLayer),
-    );
-    return resultLayer;
   }
 
   clearLayers() {
@@ -114,11 +100,12 @@ export class Composition {
 
     const transformedLayers = this.getTransformedLayers(this.layers);
 
-    const mergedLayer = this.getMergedLayer(transformedLayers);
+    const mergedLayer = transformedLayers.reduce((bgLayer, fgLayer) =>
+      mergedLayerReducer(this.imageDataLength, bgLayer, fgLayer),
+    );
 
     const mergedLayersImageData = new ImageData(
-      // TODO: fix?
-      mergedLayer.data,
+      new Uint8ClampedArray(mergedLayer.data),
       this.width,
       this.height,
     );
