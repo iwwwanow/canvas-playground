@@ -1,5 +1,5 @@
-import type { Color } from "./pixel.interfaces";
-import type { NormalColor } from "./pixel.interfaces";
+import type { Color } from "../interfaces";
+import type { NormalColor } from "../interfaces";
 
 export class Pixel {
   c: Color;

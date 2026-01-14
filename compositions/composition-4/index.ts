@@ -28,7 +28,7 @@ export const drawPoppies4 = () => {
   composition.addLayer(whiteLayer);
 
   const opacityLayer = new Layer(originalImageData);
-  opacityLayer.setTransform(TransformType.Translate, 25, 25);
+  opacityLayer.setTransform(TransformType.Translate, 50, 25);
 
   opacityLayer.setOpacity(1);
   composition.addLayer(opacityLayer);

@@ -1,7 +1,9 @@
 import { Pixel } from "../classes";
 import { Matrix } from "../math";
 
-const AFFINE_DATA = [];
+const getAffineMatrix = (tx: number, ty: number) => {
+  return new Matrix(3, 3, [1, 0, 0, 0, 1, 0, tx, ty, 1]);
+};
 
 export const translateTransform = (
   data: Uint8ClampedArray,
@@ -10,26 +12,29 @@ export const translateTransform = (
   tx: number,
   ty: number,
 ): Uint8ClampedArray => {
-  // const imageMatrix = new Matrix(width, height, data);
-  const resultMatrix = new Matrix(width, height, new Array(width * height));
+  const resultMatrix = new Matrix(
+    width,
+    height,
+    new Array(width * height).fill([0, 0, 0, 0]),
+  );
+  const affineMatrix = getAffineMatrix(tx, ty);
 
-  // TODO: use it to multiply
-  const affineData = new Uint8ClampedArray([1, 0, 0, 0, 1, 0, tx, ty, 1]);
-  // const affineMatrix = new Matrix(3, 3, affineData);
-
-  const imageSize = width * height;
   for (let pixelIndex = 0; pixelIndex < data.length; pixelIndex += 4) {
-    // TODO: use pixel class
     const pixelValue = Pixel.getDataFromUintArray(pixelIndex, data);
 
     const pixelNum = pixelIndex / 4;
     const pixelX = pixelNum % width;
     const pixelY = Math.floor(pixelNum / width);
-    resultMatrix.setPixelValue(pixelX + tx, pixelY + ty, pixelValue);
 
-    // TODO: matrix operation
+    const currentPixelMatrix = new Matrix(3, 1, [pixelX, pixelY, 1]);
+
+    const multiplyedMatix = Matrix.multiply(currentPixelMatrix, affineMatrix);
+    const [transletedX, transletedY] = multiplyedMatix.data;
+
+    if (typeof transletedX === "number" && typeof transletedY === "number") {
+      resultMatrix.setItem(transletedX, transletedY, pixelValue);
+    }
   }
 
-  return resultMatrix.getUintData();
-  return data;
+  return new Uint8ClampedArray(resultMatrix.data.flat(1));
 };

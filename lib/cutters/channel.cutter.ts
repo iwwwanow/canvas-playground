@@ -8,8 +8,6 @@ const isNeededColor = (
   return neededColorIndex === colorIndex;
 };
 
-// TODO: refactor; use Pixel
-// TODO: write test for it
 export const cutChannel = (
   data: Uint8ClampedArray,
   channel: Channel,
@@ -22,8 +20,8 @@ export const cutChannel = (
     const greenIndex = i + 1;
     const blueIndex = i + 2;
     const alphaIndex = i + 3;
-    const neededColorValue = data[i + neededColorIndex];
 
+    const neededColorValue = data[i + neededColorIndex];
     output[alphaIndex] = neededColorValue;
 
     output[redIndex] = Number(isNeededColor(neededColorIndex, 0)) * 255;
