@@ -15,3 +15,16 @@ export interface LayerOptions {
     y: number;
   };
 }
+
+export enum LayerEffect {
+  Noize = "noize",
+}
+
+export interface NoizeEffectOptions {
+  deviationCoefficient: number;
+  preserveAlpha: boolean;
+}
+
+export interface LayerEffectOptions {
+  [LayerEffect.Noize]: NoizeEffectOptions;
+}

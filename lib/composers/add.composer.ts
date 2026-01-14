@@ -26,7 +26,6 @@ export const addCompose = (
       bgPixel.nc.b + fgPixel.nc.b * fgPixel.nc.a,
     );
 
-    // TODO: как быть с alpha?
     const resultNormalPixel = [
       resultRedPixel,
       resultGreenPixel,

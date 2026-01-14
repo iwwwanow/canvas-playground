@@ -1,5 +1,6 @@
 import { Composition } from "../../lib";
 import { Layer } from "../../lib";
+import { LayerEffect } from "../../lib";
 
 const CANVAS_ID = "canvas-2";
 const IMG_QUERY_SELECTOR = "#source-2";
@@ -24,7 +25,6 @@ const drawPoppies2 = () => {
   let currentHue = 0;
   const hueStep = 1;
   let animationFrameId: number | null = null;
-  // TODO: startup onclick
   let isAnimating = true;
 
   const updateAnimation = () => {
@@ -32,10 +32,12 @@ const drawPoppies2 = () => {
 
     const hueLayerArrayData = composition.cutHue(originalImageData, currentHue);
     const hueLayer = new Layer(hueLayerArrayData);
-    hueLayer.addHueNoize(0.2);
+    hueLayer.addEffect(LayerEffect.Noize, {
+      deviationCoefficient: 0.3,
+      preserveAlpha: false,
+    });
 
     composition.clearLayers();
-    // TODO: шлейф для предыдущих слоев
     composition.addLayer(hueLayer);
     composition.render();
 

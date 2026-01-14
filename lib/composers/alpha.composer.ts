@@ -1,8 +1,39 @@
 import { Pixel } from "../classes";
-import { getResultAlpha } from "../colors";
-import { getResultColors } from "../colors";
+import { alphaComposing } from "../math";
+import type { NormalColor } from "../interfaces";
 
-// TODO: слишком глубокая вложенность фукнций. поднять все на этот уровень. оставить только её и math
+const getResultAlpha = (bgNormalAlpha: number, fgNormalAlpha: number) => {
+  const resultAlpha = fgNormalAlpha + bgNormalAlpha * (1 - fgNormalAlpha);
+  return resultAlpha;
+};
+
+const getResultColors = (
+  bgPixel: Pixel,
+  fgPixel: Pixel,
+  resultAlpha: number,
+) => {
+  const getResultColor = (
+    bgPixel: Pixel,
+    fgPixel: Pixel,
+    color: keyof NormalColor,
+    resultAlpha: number,
+  ) => {
+    return alphaComposing(
+      fgPixel.nc[color],
+      fgPixel.nc.a,
+      bgPixel.nc[color],
+      bgPixel.nc.a,
+      resultAlpha,
+    );
+  };
+
+  const redResult = getResultColor(bgPixel, fgPixel, "r", resultAlpha);
+  const greenResult = getResultColor(bgPixel, fgPixel, "g", resultAlpha);
+  const blueResult = getResultColor(bgPixel, fgPixel, "b", resultAlpha);
+
+  return [redResult, greenResult, blueResult];
+};
+
 export const alphaCompose = (
   bgLayerData: Uint8ClampedArray,
   fgLayerData: Uint8ClampedArray,

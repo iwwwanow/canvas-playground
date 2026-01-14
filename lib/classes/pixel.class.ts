@@ -1,9 +1,9 @@
-import type { C } from "./pixel.interfaces";
-import type { NC } from "./pixel.interfaces";
+import type { Color } from "./pixel.interfaces";
+import type { NormalColor } from "./pixel.interfaces";
 
 export class Pixel {
-  c: C;
-  nc: NC;
+  c: Color;
+  nc: NormalColor;
 
   constructor(pixelData: Array<number>) {
     const [r, g, b, a] = pixelData;
