@@ -42,6 +42,7 @@ export class Layer {
     switch (effect) {
       case LayerEffect.Noize: {
         this.addHueNoize(options);
+        break;
       }
       default: {
         return;
