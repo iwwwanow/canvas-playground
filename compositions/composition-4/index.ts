@@ -22,14 +22,13 @@ export const drawPoppies4 = () => {
 
   const originalImageData = composition.imageData?.data;
   if (!originalImageData) throw new Error("image data not defined");
-  console.log(originalImageData.length);
 
   const whiteLayer = new Layer(originalImageData.map(() => 255));
   composition.addLayer(whiteLayer);
 
   const opacityLayer = new Layer(originalImageData);
   // opacityLayer.setTransform({type: TransformType.Translate, x: 50, y: 25});
-  opacityLayer.setTransform({ type: TransformType.Rotate, alpha: 50 });
+  opacityLayer.setTransform({ type: TransformType.Rotate, alpha: 60 });
 
   opacityLayer.setOpacity(1);
   composition.addLayer(opacityLayer);
