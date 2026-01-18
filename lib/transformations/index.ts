@@ -1,2 +1,2 @@
 export * from "./translate.transformation";
-export * from "./rotate.transform.transformation";
+export * from "./rotate.transformation";

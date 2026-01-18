@@ -43,7 +43,11 @@ export const rotateTransform = (
     const [transletedX, transletedY] = multiplyedMatix.data;
 
     if (typeof transletedX === "number" && typeof transletedY === "number") {
-      resultMatrix.setItem(transletedX, transletedY, pixelValue);
+      resultMatrix.setItem(
+        Math.round(transletedX),
+        Math.round(transletedY),
+        pixelValue,
+      );
     }
   }
 
