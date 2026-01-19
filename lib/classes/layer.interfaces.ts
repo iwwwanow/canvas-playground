@@ -3,6 +3,7 @@ import type { BlendMod } from "./composition.interfaces";
 export enum TransformType {
   Translate = "translate",
   Rotate = "rotate",
+  Scale = "scale",
 }
 
 export interface LayerOptions {
@@ -15,6 +16,8 @@ export interface LayerOptions {
     x?: number;
     y?: number;
     alpha?: number;
+    scaleX: number;
+    scaleY: number;
   };
 }
 
@@ -23,6 +26,8 @@ export interface SetTransformProps {
   x?: number;
   y?: number;
   alpha?: number;
+  scaleX?: number;
+  scaleY?: number;
 }
 
 export enum LayerEffect {
