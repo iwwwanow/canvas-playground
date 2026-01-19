@@ -1,8 +1,10 @@
-import { translateTransform } from "../transformations";
+import type { Layer } from "../classes";
 import { TransformType } from "../classes";
+
+import { translateTransform } from "../transformations";
 import { rotateTransform } from "../transformations";
 import { scaleTransform } from "../transformations";
-import type { Layer } from "../classes";
+import { skewTransform } from "../transformations";
 
 export const transformedLayersMapper = (
   layer: Layer,
@@ -43,6 +45,11 @@ export const transformedLayersMapper = (
         scaleY,
       );
       layer.setData(scaledLayerData);
+
+      return layer;
+    case TransformType.Skew:
+      const shearedLayerData = skewTransform(layer.data, width, height, x, y);
+      layer.setData(shearedLayerData);
 
       return layer;
     default:
