@@ -4,6 +4,7 @@ export enum TransformType {
   Translate = "translate",
   Rotate = "rotate",
   Scale = "scale",
+  Skew = "skew",
 }
 
 export interface LayerOptions {
