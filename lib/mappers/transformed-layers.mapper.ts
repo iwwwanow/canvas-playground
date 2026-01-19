@@ -1,6 +1,7 @@
 import { translateTransform } from "../transformations";
 import { TransformType } from "../classes";
 import { rotateTransform } from "../transformations";
+import { scaleTransform } from "../transformations";
 import type { Layer } from "../classes";
 
 export const transformedLayersMapper = (
@@ -9,7 +10,7 @@ export const transformedLayersMapper = (
   height: number,
 ) => {
   if (!layer.options?.transform) return layer;
-  const { x, y, alpha } = layer.options.transform;
+  const { x, y, alpha, scaleX, scaleY } = layer.options.transform;
 
   switch (layer.options?.transform.type) {
     case TransformType.Translate:
@@ -31,6 +32,17 @@ export const transformedLayersMapper = (
         alpha,
       );
       layer.setData(rotatedLayerData);
+
+      return layer;
+    case TransformType.Scale:
+      const scaledLayerData = scaleTransform(
+        layer.data,
+        width,
+        height,
+        scaleX,
+        scaleY,
+      );
+      layer.setData(scaledLayerData);
 
       return layer;
     default:
