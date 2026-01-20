@@ -1,12 +1,5 @@
 import type { BlendMod } from "./composition.interfaces";
 
-export enum TransformType {
-  Translate = "translate",
-  Rotate = "rotate",
-  Scale = "scale",
-  Skew = "skew",
-}
-
 export interface LayerOptions {
   name?: string;
   position?: string;
