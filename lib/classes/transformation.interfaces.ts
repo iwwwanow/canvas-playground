@@ -6,7 +6,8 @@ export enum TransformType {
 }
 
 interface TranslateParams {
-  alpha: number;
+  tx: number;
+  ty: number;
 }
 
 interface RotateParams {
@@ -19,8 +20,8 @@ interface ScaleParams {
 }
 
 interface SkewParams {
-  scaleX: number;
-  scaleY: number;
+  tx: number;
+  ty: number;
 }
 
 export interface TransformParams {
