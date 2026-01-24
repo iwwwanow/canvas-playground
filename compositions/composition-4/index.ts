@@ -34,6 +34,7 @@ export const drawPoppies4 = () => {
   //   scaleX: 2,
   //   scaleY: 0.5,
   // });
+
   opacityLayer.setTransform({
     type: TransformType.Skew,
     x: 0.5,

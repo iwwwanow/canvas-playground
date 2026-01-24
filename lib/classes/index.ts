@@ -5,3 +5,4 @@ export * from "./transformation.class";
 
 export * from "./layer.interfaces";
 export * from "./composition.interfaces";
+export * from "./transformation.interfaces";
