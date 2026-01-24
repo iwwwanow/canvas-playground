@@ -1,6 +1,7 @@
 import { TransformType } from "./transformation.interfaces";
 import type { TransformParams } from "./transformation.interfaces";
 import { Matrix } from "../math";
+import { Pixel } from "./pixel.class";
 
 export class Transformation<T extends TransformType> {
   type: T;
@@ -15,6 +16,44 @@ export class Transformation<T extends TransformType> {
     this.affineMatrix = new Matrix(3, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1]);
 
     this.setAffineMatrix(type);
+  }
+
+  process(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+  ): Uint8ClampedArray {
+    const resultMatrix = new Matrix(
+      width,
+      height,
+      new Array(width * height).fill([0, 0, 0, 0]),
+    );
+
+    for (let pixelIndex = 0; pixelIndex < data.length; pixelIndex += 4) {
+      const pixelValue = Pixel.getDataFromUintArray(pixelIndex, data);
+
+      const pixelNum = pixelIndex / 4;
+      const pixelX = pixelNum % width;
+      const pixelY = Math.floor(pixelNum / width);
+
+      const currentPixelMatrix = new Matrix(3, 1, [pixelX, pixelY, 1]);
+
+      const multiplyedMatix = Matrix.multiply(
+        currentPixelMatrix,
+        this.affineMatrix,
+      );
+      const [transletedX, transletedY] = multiplyedMatix.data;
+
+      if (typeof transletedX === "number" && typeof transletedY === "number") {
+        resultMatrix.setItem(
+          Math.round(transletedX),
+          Math.round(transletedY),
+          pixelValue,
+        );
+      }
+    }
+
+    return new Uint8ClampedArray(resultMatrix.data.flat(1));
   }
 
   private setAffineMatrix(type: TransformType) {
