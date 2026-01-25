@@ -1,62 +1,19 @@
 import type { Layer } from "../classes";
-import { TransformType } from "../classes";
 import { Transformation } from "../classes";
 
-import { translateTransform } from "../transformations";
-import { rotateTransform } from "../transformations";
-import { scaleTransform } from "../transformations";
-import { skewTransform } from "../transformations";
+// TODO: поднять это на уровень выше
 
 export const transformedLayersMapper = (
   layer: Layer,
   width: number,
   height: number,
 ) => {
-  if (!layer.options?.transform) return layer;
-  const { x, y, alpha, scaleX, scaleY } = layer.options.transform;
-  const transformType = layer.options?.transform.type;
+  if (!layer.options?.transform?.type) return layer;
+  const { type, params } = layer.options.transform;
 
-  const transformation = new Transformation(transformType);
+  const transformation = new Transformation(type, params);
 
-  // switch (transformType) {
-  //   case TransformType.Translate:
-  //     const transformedData = translateTransform(
-  //       layer.data,
-  //       width,
-  //       height,
-  //       x,
-  //       y,
-  //     );
-  //     layer.setData(transformedData);
-  //
-  //     return layer;
-  //   case TransformType.Rotate:
-  //     const rotatedLayerData = rotateTransform(
-  //       layer.data,
-  //       width,
-  //       height,
-  //       alpha,
-  //     );
-  //     layer.setData(rotatedLayerData);
-  //
-  //     return layer;
-  //   case TransformType.Scale:
-  //     const scaledLayerData = scaleTransform(
-  //       layer.data,
-  //       width,
-  //       height,
-  //       scaleX,
-  //       scaleY,
-  //     );
-  //     layer.setData(scaledLayerData);
-  //
-  //     return layer;
-  //   case TransformType.Skew:
-  //     const shearedLayerData = skewTransform(layer.data, width, height, x, y);
-  //     layer.setData(shearedLayerData);
-  //
-  //     return layer;
-  //   default:
-  //     return layer;
-  // }
+  const processedData = transformation.process(layer.data, width, height);
+  layer.setData(processedData);
+  return layer;
 };
