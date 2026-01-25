@@ -7,6 +7,8 @@ import { hslToRgb } from "../utils";
 import { LayerEffect } from "./layer.interfaces";
 import type { LayerEffectOptions } from "./layer.interfaces";
 import type { NoizeEffectOptions } from "./layer.interfaces";
+import type { TransformType } from "./transformation.interfaces";
+import type { TransformParams } from "./transformation.interfaces";
 
 export class Layer {
   options?: LayerOptions = {};
@@ -32,9 +34,19 @@ export class Layer {
   }
 
   // TODO: type is first argument
-  setTransform(options: SetTransformProps) {
+  setTransform({
+    type,
+    params,
+  }: {
+    type: TransformType;
+    // TODO fix it
+    params: TransformParams[keyof TransformParams];
+  }) {
     if (!this.options) this.options = {};
-    if (!this.options.transform) this.options.transform = { ...options };
+    if (!this.options.transform) this.options.transform = {};
+
+    this.options.transform.type = type;
+    this.options.transform.params = params;
   }
 
   addEffect<T extends LayerEffect>(

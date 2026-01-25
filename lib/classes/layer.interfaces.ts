@@ -1,4 +1,6 @@
 import type { BlendMod } from "./composition.interfaces";
+import { TransformType } from "./transformation.interfaces";
+import type { TransformParams } from "./transformation.interfaces";
 
 export interface LayerOptions {
   name?: string;
@@ -7,11 +9,8 @@ export interface LayerOptions {
   opacity?: number;
   transform?: {
     type: TransformType;
-    x?: number;
-    y?: number;
-    alpha?: number;
-    scaleX: number;
-    scaleY: number;
+    // TODO fix it
+    params: TransformParams[keyof TransformParams];
   };
 }
 
