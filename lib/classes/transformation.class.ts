@@ -1,19 +1,23 @@
 import { TransformType } from "./transformation.interfaces";
 import type { TransformParams } from "./transformation.interfaces";
+import type { SkewParams } from "./transformation.interfaces";
+import type { ScaleParams } from "./transformation.interfaces";
+import type { RotateParams } from "./transformation.interfaces";
+import type { TranslateParams } from "./transformation.interfaces";
 import { Matrix } from "../math";
 import { Pixel } from "./pixel.class";
+import type { TransformTypeParams } from "./transformation.interfaces";
 
-export class Transformation<T extends TransformType> {
-  type: T;
-  params: TransformParams[T];
+export class Transformation {
+  type: TransformType;
+  params: TransformTypeParams;
   affineMatrix: Matrix;
 
-  constructor(type: T, params: TransformParams[T]) {
+  constructor({ type, params }: TransformParams) {
     this.type = type;
     this.params = params;
 
-    // TODO: тождественная матрица?
-    this.affineMatrix = new Matrix(3, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    this.affineMatrix = new Matrix(3, 3, [1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
     this.setAffineMatrix(type);
   }
@@ -61,20 +65,20 @@ export class Transformation<T extends TransformType> {
 
     switch (type) {
       case TransformType.Skew:
-        params = this.params as TransformParams[TransformType.Skew];
+        params = this.params as SkewParams;
         this.affineMatrix = this.getSkewMatrix(params.tx, params.ty);
         break;
       case TransformType.Scale:
-        params = this.params as TransformParams[TransformType.Scale];
+        params = this.params as ScaleParams;
         this.affineMatrix = this.getScaleMatrix(params.scaleX, params.scaleY);
         break;
       case TransformType.Rotate:
-        params = this.params as TransformParams[TransformType.Rotate];
+        params = this.params as RotateParams;
         const radians = (Math.PI / 180) * params.alpha;
         this.affineMatrix = this.getRotateMatrix(radians);
         break;
       case TransformType.Translate:
-        params = this.params as TransformParams[TransformType.Translate];
+        params = this.params as TranslateParams;
         this.affineMatrix = this.getTranslateMatrix(params.tx, params.ty);
         break;
       default:
