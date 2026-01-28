@@ -5,28 +5,33 @@ export enum TransformType {
   Skew = "skew",
 }
 
-interface TranslateParams {
+export interface TranslateParams {
   tx: number;
   ty: number;
 }
 
-interface RotateParams {
+export interface RotateParams {
   alpha: number;
 }
 
-interface ScaleParams {
+export interface ScaleParams {
   scaleX: number;
   scaleY: number;
 }
 
-interface SkewParams {
+export interface SkewParams {
   tx: number;
   ty: number;
 }
 
-export interface TransformParams {
-  [TransformType.Translate]: TranslateParams;
-  [TransformType.Rotate]: RotateParams;
-  [TransformType.Scale]: ScaleParams;
-  [TransformType.Skew]: SkewParams;
-}
+export type TransformTypeParams =
+  | TranslateParams
+  | RotateParams
+  | ScaleParams
+  | SkewParams;
+
+export type TransformParams =
+  | { type: TransformType.Translate; params: TranslateParams }
+  | { type: TransformType.Rotate; params: RotateParams }
+  | { type: TransformType.Scale; params: ScaleParams }
+  | { type: TransformType.Skew; params: SkewParams };

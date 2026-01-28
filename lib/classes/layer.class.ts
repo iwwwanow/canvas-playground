@@ -1,7 +1,6 @@
 import { rgbToHsl } from "../utils";
 import { BlendMod } from "./composition.interfaces";
 import type { LayerOptions } from "./layer.interfaces";
-import type { SetTransformProps } from "./layer.interfaces";
 import { Pixel } from "./pixel.class";
 import { hslToRgb } from "../utils";
 import { LayerEffect } from "./layer.interfaces";
@@ -33,13 +32,11 @@ export class Layer {
     this.options.opacity = opacity;
   }
 
-  // TODO: type is first argument
   setTransform({
     type,
     params,
   }: {
     type: TransformType;
-    // TODO fix it
     params: TransformParams[keyof TransformParams];
   }) {
     if (!this.options) this.options = {};

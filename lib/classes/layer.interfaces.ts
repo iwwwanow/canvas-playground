@@ -7,11 +7,7 @@ export interface LayerOptions {
   position?: string;
   blendMod?: BlendMod;
   opacity?: number;
-  transform?: {
-    type: TransformType;
-    // TODO fix it
-    params: TransformParams[keyof TransformParams];
-  };
+  transform?: TransformParams;
 }
 
 export interface SetTransformProps {
