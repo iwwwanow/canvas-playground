@@ -21,7 +21,7 @@ export const drawPoppies4 = () => {
   const originalImageData = composition.imageData?.data;
   if (!originalImageData) throw new Error("image data not defined");
 
-  const levelLayerArrayData = composition.cutLevel(originalImageData, 0.8);
+  const levelLayerArrayData = composition.cutLevel(originalImageData, 5);
   const levelLayer = new Layer(levelLayerArrayData);
 
   composition.addLayer(levelLayer);

@@ -1,11 +1,12 @@
 import { rgbToHsv } from "../utils";
 import { Pixel } from "../classes";
 
+// TODO: rename it to cut value?
 export const cutLevel = (
   data: Uint8ClampedArray,
   neededLevel: number,
 ): Uint8ClampedArray => {
-  const normalNeedeHue = neededLevel / 360;
+  const normalNeedeLevel = neededLevel / 360;
 
   const output = new Uint8ClampedArray(data.length);
   for (let i = 0; i < data.length; i += 4) {
@@ -14,25 +15,31 @@ export const cutLevel = (
       data,
     );
 
-    const [pixelHue] = rgbToHsv([pixelRed, pixelGreen, pixelBlue]);
+    const [_pixelHue, _pixelSaturation, pixelValue] = rgbToHsv([
+      pixelRed,
+      pixelGreen,
+      pixelBlue,
+    ]);
 
     const redIndex = i;
     const greenIndex = i + 1;
     const blueIndex = i + 2;
     const alphaIndex = i + 3;
 
-    const normalPixelHue = pixelHue / 360;
+    const normalPixelValue = pixelValue / 100;
 
-    let hueDifference = Math.abs(normalNeedeHue - normalPixelHue);
-    if (hueDifference > 0.5) {
-      hueDifference = 1 - hueDifference;
+    let valueDifference = Math.abs(normalNeedeLevel - normalPixelValue);
+    if (valueDifference > 0.5) {
+      valueDifference = 1 - valueDifference;
     }
 
-    const hueTolerance = 0.02;
+    // TODO: pass it from params
+    // const valueTolerance = 0.02;
+    const valueTolerance = 0.1;
 
     let alpha = 0;
-    if (hueDifference <= hueTolerance) {
-      const normalizedDiff = hueDifference / hueTolerance;
+    if (valueDifference <= valueTolerance) {
+      const normalizedDiff = valueDifference / valueTolerance;
       alpha = 1 - normalizedDiff * normalizedDiff;
     }
 
