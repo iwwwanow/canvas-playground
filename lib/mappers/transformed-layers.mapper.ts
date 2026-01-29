@@ -1,5 +1,6 @@
 import type { Layer } from "../classes";
 import { Transformation } from "../classes";
+import type { TransformParams } from "../classes";
 
 export const transformedLayersMapper = (
   layer: Layer,
@@ -11,7 +12,11 @@ export const transformedLayersMapper = (
 
   if (!params) throw new Error("params not defined");
 
-  const transformation = new Transformation({ type, params });
+  const transformation = new Transformation({
+    type,
+    params,
+    // TODO: fix it
+  } as TransformParams);
 
   const processedData = transformation.process(layer.data, width, height);
   layer.setData(processedData);
