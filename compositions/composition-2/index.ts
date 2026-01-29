@@ -30,6 +30,7 @@ const drawPoppies2 = () => {
   const updateAnimation = () => {
     if (!isAnimating) return;
 
+    // TODO: зачем я прокидываю original image data, если она и так есть в composition?
     const hueLayerArrayData = composition.cutHue(originalImageData, currentHue);
     const hueLayer = new Layer(hueLayerArrayData);
     hueLayer.addEffect(LayerEffect.Noize, {

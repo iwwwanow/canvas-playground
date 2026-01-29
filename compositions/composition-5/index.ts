@@ -1,4 +1,5 @@
 import { Composition } from "../../lib";
+import { Layer } from "../../lib";
 
 const CANVAS_ID = "canvas-4";
 const IMG_QUERY_SELECTOR = "#source-4";
@@ -20,6 +21,10 @@ export const drawPoppies4 = () => {
   const originalImageData = composition.imageData?.data;
   if (!originalImageData) throw new Error("image data not defined");
 
+  const levelLayerArrayData = composition.cutLevel(originalImageData, 0.8);
+  const levelLayer = new Layer(levelLayerArrayData);
+
+  composition.addLayer(levelLayer);
   composition.render();
 };
 

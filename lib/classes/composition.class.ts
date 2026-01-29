@@ -1,4 +1,5 @@
 import type { CompositionConstructor } from "./composition.interfaces";
+import { cutLevel } from "../cutters";
 import { Channel } from "./composition.interfaces";
 import { cutChannel } from "../cutters";
 import { Layer } from "./layer.class";
@@ -83,6 +84,10 @@ export class Composition {
 
   cutHue(data: Uint8ClampedArray, neededHue: number): Uint8ClampedArray {
     return cutHue(data, neededHue);
+  }
+
+  cutLevel(data: Uint8ClampedArray, neededLevel: number): Uint8ClampedArray {
+    return cutLevel(data, neededLevel);
   }
 
   clearLayers() {
