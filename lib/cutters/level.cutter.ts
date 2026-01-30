@@ -6,7 +6,7 @@ export const cutLevel = (
   data: Uint8ClampedArray,
   neededLevel: number,
 ): Uint8ClampedArray => {
-  const normalNeedeLevel = neededLevel / 360;
+  const normalNeedeLevel = neededLevel / 100;
 
   const output = new Uint8ClampedArray(data.length);
   for (let i = 0; i < data.length; i += 4) {
