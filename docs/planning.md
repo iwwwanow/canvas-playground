@@ -1,3 +1,6 @@
+- [ ] нужно поправить нейминг. я кат не level, я cut value.
+  - [ ] также нужно дописать cut saturation
+  - что такое тогда level - это saturation + value?
 - [ ] остановился на transformed layers mapper
 - [x] выделить для каждой композиции свою страницу
 - [x] opacity - сделал
