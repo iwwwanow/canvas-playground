@@ -21,11 +21,30 @@ export const drawPoppies4 = () => {
   const originalImageData = composition.imageData?.data;
   if (!originalImageData) throw new Error("image data not defined");
 
-  const levelLayerArrayData = composition.cutLevel(originalImageData, 5);
-  const levelLayer = new Layer(levelLayerArrayData);
+  let currentLevel = 0;
+  const levelStep = 1;
+  let animationFrameId: number | null = null;
+  let isAnimating = true;
 
-  composition.addLayer(levelLayer);
-  composition.render();
+  const updateAnimation = () => {
+    if (!isAnimating) return;
+
+    // TODO: зачем я прокидываю original image data, если она и так есть в composition?
+    const levelLayerArrayData = composition.cutLevel(
+      originalImageData,
+      currentLevel,
+    );
+    const levelLayer = new Layer(levelLayerArrayData);
+
+    composition.clearLayers();
+    composition.addLayer(levelLayer);
+    composition.render();
+
+    currentLevel = (currentLevel + levelStep) % 100;
+    animationFrameId = requestAnimationFrame(updateAnimation);
+  };
+
+  animationFrameId = requestAnimationFrame(updateAnimation);
 };
 
 drawPoppies4();
