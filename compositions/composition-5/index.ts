@@ -30,7 +30,8 @@ export const drawPoppies4 = () => {
     if (!isAnimating) return;
 
     // TODO: зачем я прокидываю original image data, если она и так есть в composition?
-    const levelLayerArrayData = composition.cutLevel(
+    const levelLayerArrayData = composition.cutValue(
+      // const levelLayerArrayData = composition.cutSaturation(
       originalImageData,
       currentLevel,
     );

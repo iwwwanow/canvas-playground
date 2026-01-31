@@ -1,9 +1,10 @@
 import type { CompositionConstructor } from "./composition.interfaces";
-import { cutLevel } from "../cutters";
+import { cutValue } from "../cutters";
 import { Channel } from "./composition.interfaces";
 import { cutChannel } from "../cutters";
 import { Layer } from "./layer.class";
 import { cutHue } from "../cutters";
+import { cutSaturation } from "../cutters";
 import type { CompositionOpitons } from "./composition.interfaces";
 import type { HexString } from "../interfaces";
 import { hexToRgba } from "../utils";
@@ -86,8 +87,15 @@ export class Composition {
     return cutHue(data, neededHue);
   }
 
-  cutLevel(data: Uint8ClampedArray, neededLevel: number): Uint8ClampedArray {
-    return cutLevel(data, neededLevel);
+  cutValue(data: Uint8ClampedArray, neededValue: number): Uint8ClampedArray {
+    return cutValue(data, neededValue);
+  }
+
+  cutSaturation(
+    data: Uint8ClampedArray,
+    neededValue: number,
+  ): Uint8ClampedArray {
+    return cutSaturation(data, neededValue);
   }
 
   clearLayers() {
