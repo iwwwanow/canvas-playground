@@ -2,11 +2,11 @@ import { rgbToHsv } from "../utils";
 import { Pixel } from "../classes";
 
 // TODO: rename it to cut value?
-export const cutLevel = (
+export const cutSaturation = (
   data: Uint8ClampedArray,
-  neededLevel: number,
+  neededValue: number,
 ): Uint8ClampedArray => {
-  const normalNeedeLevel = neededLevel / 100;
+  const normalNeededSaturation = neededValue / 100;
 
   const output = new Uint8ClampedArray(data.length);
   for (let i = 0; i < data.length; i += 4) {
@@ -15,7 +15,7 @@ export const cutLevel = (
       data,
     );
 
-    const [_pixelHue, _pixelSaturation, pixelValue] = rgbToHsv([
+    const [_pixelHue, pixelSaturation, _pixelValue] = rgbToHsv([
       pixelRed,
       pixelGreen,
       pixelBlue,
@@ -26,9 +26,11 @@ export const cutLevel = (
     const blueIndex = i + 2;
     const alphaIndex = i + 3;
 
-    const normalPixelValue = pixelValue / 100;
+    const normalPixelSaturation = pixelSaturation / 100;
 
-    let valueDifference = Math.abs(normalNeedeLevel - normalPixelValue);
+    let valueDifference = Math.abs(
+      normalNeededSaturation - normalPixelSaturation,
+    );
     if (valueDifference > 0.5) {
       valueDifference = 1 - valueDifference;
     }
