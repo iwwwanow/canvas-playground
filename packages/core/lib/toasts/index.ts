@@ -32,6 +32,7 @@ export interface Toast {
 }
 
 export { HueNoise, HueScan, HueCycle, MosaicSegment };
+export type { Segment } from "./mosaic-segment.toast";
 
 export const toasts: Record<string, Toast> = {
   "hue-noise": HueNoise as unknown as Toast,

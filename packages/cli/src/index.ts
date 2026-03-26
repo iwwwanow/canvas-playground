@@ -4,6 +4,7 @@ import { listCommand } from "./commands/list.js";
 import { publishCommand } from "./commands/publish.js";
 import { runCommand } from "./commands/run.js";
 import { batchCommand } from "./commands/batch.js";
+import { mosaicSegmentCommand, mosaicRenderCommand } from "./commands/mosaic.js";
 
 const program = new Command();
 
@@ -61,5 +62,34 @@ program
   .action(async (slug: string, opts: { input: string; output: string; param: string[] }) =>
     batchCommand(slug, opts)
   );
+
+const mosaic = program
+  .command("mosaic")
+  .description("mosaic toast pipeline: segment an image, then render a mosaic video");
+
+mosaic
+  .command("segment")
+  .description("segment an image into color regions and save rectangles")
+  .requiredOption("-i, --input <path>", "input image path")
+  .requiredOption("-o, --output <dir>", "output directory for segments.json and debug.png")
+  .option("--cell-size <n>", "grid cell size in pixels (default 32)", parseInt)
+  .option("-k, --k <n>", "number of color clusters (default 8)", parseInt)
+  .action((opts: { input: string; output: string; cellSize?: number; k?: number }) =>
+    mosaicSegmentCommand(opts)
+  );
+
+mosaic
+  .command("render")
+  .description("render mosaic video from segments.json + assets directory")
+  .requiredOption("--segments <path>", "path to segments.json")
+  .requiredOption("--assets <dir>", "directory with video/image/gif assets (or subdirs with PNG sequences)")
+  .requiredOption("-o, --output <path>", "output mp4 or gif path")
+  .option("--duration <s>", "output duration in seconds (default 5)", parseFloat)
+  .option("--fps <n>", "frames per second (default 24)", parseInt)
+  .option("--format <fmt>", "output format: mp4 or gif (default mp4)")
+  .action((opts: {
+    segments: string; assets: string; output: string;
+    duration?: number; fps?: number; format?: "mp4" | "gif";
+  }) => mosaicRenderCommand(opts));
 
 program.parse();
