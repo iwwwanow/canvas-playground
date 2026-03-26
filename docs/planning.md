@@ -73,27 +73,48 @@ toast batch hue-scan -i ./photos/ -o ./results/ --param hue=90
 ---
 
 ### Toast 2: `mosaic`
-Мозаичная замена регионов изображения на медиафайлы. Многошаговый пайплайн.
+Мозаичная замена регионов **видео** на медиафайлы (изображения, видео, gif). Многошаговый пайплайн.
 
-**Параметры:**
-- `segmentationLevel` — 0–1, детализация разбиения (default 0.5)
-- `assetsDir` — путь к папке с ассетами (видео/gif/изображения)
-- `duration` — длина итогового видео в секундах (default 10)
+**Ключевые принципы:**
+- Прямоугольники сегментации следуют **тону/градиенту** изображения — некоторые наклонены (по доминирующему направлению края), некоторые нет
+- Инпут — видео (не одно изображение); сегментация вычисляется по референсному кадру
+- Каждый кластер получает ассет, подобранный по цветовой близости к центроиду кластера
 
-**CLI (три шага или один):**
-```bash
-# Шаг 1: разбить изображение на прямоугольники и визуализировать
-toast mosaic segment -i input.jpg -o ./output/ --segmentation-level 0.5
-
-# Шаг 2: собрать и аннотировать ассеты (один раз)
-toast mosaic collect-assets --count 100 --output-dir ./assets/
-
-# Шаг 3: рендеринг видео
-toast mosaic render --rectangles ./output/rectangles.json --assets ./assets/ -o result.mp4
-
-# Или всё за один вызов
-toast run mosaic -i input.jpg -o result.mp4 --param segmentationLevel=0.5 --param assetsDir=./assets/
+**Пайплайн (шаг за шагом):**
 ```
+инпут-видео
+  → [mosaic frames]  секвенция кадров с нарисованными прямоугольниками (превью)
+  → [mosaic collect-assets]  скачать ассеты (Lorem Picsum или др. источник)
+  → [mosaic render]  заменить каждый прямоугольник на ассет, склеить видео
+```
+
+**CLI:**
+```bash
+# Шаг 1: видео → секвенция прямоугольников (отладочный превью)
+toast mosaic frames -i input.mp4 -o ./frames/ --cell-size 32 -k 8
+# Результат: ./frames/frame_XXXXX.png + segments.json
+
+# Шаг 2: скачать ассеты (один раз)
+toast mosaic collect-assets -o ./assets/downloaded --count 20 [--query "nature"]
+
+# Шаг 3: рендеринг мозаичного видео
+toast mosaic render --segments ./frames/segments.json --assets ./assets/downloaded -o result.mp4 --duration 10
+
+# Дополнительно: сегментировать одиночное изображение
+toast mosaic segment -i input.jpg -o ./output/
+```
+
+**Параметры сегментации:**
+- `cellSize` — размер ячейки сетки в пикселях (default 32)
+- `k` — количество цветовых кластеров (default 8)
+- `gradientThreshold` — минимальная величина градиента для применения наклона (default 15)
+- `maxAngle` — максимальный угол наклона прямоугольника в градусах (default 40)
+
+**Параметры рендера:**
+- `--segments` — путь к segments.json
+- `--assets` — папка с ассетами (jpg/png/mp4/gif/субпапки с PNG-секвенциями)
+- `--duration` — длина выходного видео в секундах (default 5)
+- `--fps` — кадров в секунду (default 24)
 
 **outputType:** `video`
 
@@ -105,7 +126,10 @@ toast run mosaic -i input.jpg -o result.mp4 --param segmentationLevel=0.5 --para
 toast run <slug> -i <input> -o <output> [--param key=value ...]
 toast batch <slug> -i <dir|list.txt> -o <dir> [--param key=value ...]
 toast render -s <script.ts> -i <input> -o <output.mp4>   # скрипт → видео (будущее)
-toast mosaic segment|collect-assets|render [opts]
+toast mosaic frames -i <video> -o <dir> [--cell-size 32] [-k 8]
+toast mosaic collect-assets -o <dir> [--count 20] [--query <tag>]
+toast mosaic segment -i <image> -o <dir>     # для одиночного изображения
+toast mosaic render --segments <json> --assets <dir> -o <mp4> [--duration 10]
 toast list
 toast publish -n <name> -p <preview.gif> [-d <desc>]
 toast login <login> <password>
