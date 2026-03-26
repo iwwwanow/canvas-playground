@@ -1,6 +1,7 @@
 import * as HueNoise from "./hue-noise.toast";
 import * as HueScan from "./hue-scan.toast";
 import * as HueCycle from "./hue-cycle.toast";
+import * as MosaicSegment from "./mosaic-segment.toast";
 
 export type ToastOutput =
   | { type: "image"; data: Uint8ClampedArray }
@@ -30,10 +31,11 @@ export interface Toast {
   bake: BakeFn;
 }
 
-export { HueNoise, HueScan, HueCycle };
+export { HueNoise, HueScan, HueCycle, MosaicSegment };
 
 export const toasts: Record<string, Toast> = {
   "hue-noise": HueNoise as unknown as Toast,
   "hue-scan": HueScan as unknown as Toast,
   "hue-cycle": HueCycle as unknown as Toast,
+  "mosaic-segment": MosaicSegment as unknown as Toast,
 };
