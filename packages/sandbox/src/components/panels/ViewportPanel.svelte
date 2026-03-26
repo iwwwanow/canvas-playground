@@ -1,29 +1,32 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { Composition } from "@xtc-toaster/core";
-  import { compositionStore } from "../../stores/composition.store.svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { toasts } from "@xtc-toaster/core";
+  import { toastStore } from "../../stores/toast.store.svelte";
 
-  export const CANVAS_ID = "__gui_canvas__";
+  const CANVAS_ID = "__gui_canvas__";
 
   let canvas: HTMLCanvasElement;
   let imageSize = $state<{ w: number; h: number } | null>(null);
+  let originalData = $state<Uint8ClampedArray | null>(null);
+  let animFrameId: number | null = null;
 
+  function stopAnim() {
+    if (animFrameId !== null) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+  }
 
-  function initComposition(img: HTMLImageElement) {
-    compositionStore.stopAnimation();
+  function loadImage(img: HTMLImageElement) {
+    stopAnim();
     const w = img.naturalWidth;
     const h = img.naturalHeight;
     imageSize = { w, h };
     canvas.width = w;
     canvas.height = h;
-
-    const comp = new Composition({
-      canvasId: CANVAS_ID,
-      imgQuerySelector: "#__gui_img__",
-      options: { width: w, height: h },
-    });
-    comp.init();
-    compositionStore.set(comp);
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, w, h);
+    originalData = new Uint8ClampedArray(ctx.getImageData(0, 0, w, h).data);
   }
 
   function onFileChange(e: Event) {
@@ -31,14 +34,40 @@
     if (!file) return;
     const url = URL.createObjectURL(file);
     const img = document.getElementById("__gui_img__") as HTMLImageElement;
-    img.onload = () => initComposition(img);
+    img.onload = () => loadImage(img);
     img.src = url;
   }
 
   onMount(() => {
     const img = document.getElementById("__gui_img__") as HTMLImageElement;
-    if (img.complete && img.naturalWidth > 0) initComposition(img);
-    else img.onload = () => initComposition(img);
+    if (img.complete && img.naturalWidth > 0) loadImage(img);
+    else img.onload = () => loadImage(img);
+  });
+
+  onDestroy(stopAnim);
+
+  $effect(() => {
+    const slug = toastStore.selectedSlug;
+    stopAnim();
+    if (!slug || !originalData || !canvas || !imageSize) return;
+
+    const toast = toasts[slug];
+    if (!toast) return;
+
+    const ctx = canvas.getContext("2d")!;
+    const { w, h } = imageSize;
+    const data = originalData;
+    let hue = 0;
+
+    const loop = () => {
+      const result = toast.bake(data, w, h, { hue });
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(result), w, h), 0, 0);
+      hue = (hue + 1) % 360;
+      animFrameId = requestAnimationFrame(loop);
+    };
+    animFrameId = requestAnimationFrame(loop);
+
+    return stopAnim;
   });
 </script>
 
@@ -54,11 +83,13 @@
     {#if imageSize}
       <span class="info">{imageSize.w} × {imageSize.h} px</span>
     {/if}
+    {#if toastStore.selectedSlug}
+      <span class="info">— {toasts[toastStore.selectedSlug]?.meta.name}</span>
+    {/if}
   </div>
 
   <div class="canvas-area">
     <canvas id={CANVAS_ID} bind:this={canvas}></canvas>
-
   </div>
 </div>
 

@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { loginCommand } from "./commands/login.js";
 import { listCommand } from "./commands/list.js";
 import { publishCommand } from "./commands/publish.js";
+import { runCommand } from "./commands/run.js";
 
 const program = new Command();
 
@@ -28,6 +29,21 @@ program
   .option("-d, --description <text>", "optional description")
   .action((opts: { name: string; preview: string; description?: string }) =>
     publishCommand(opts)
+  );
+
+program
+  .command("run <slug>")
+  .description("apply a toast to an image")
+  .requiredOption("-i, --input <path>", "input image path")
+  .requiredOption("-o, --output <path>", "output image path")
+  .option(
+    "--param <key=value>",
+    "toast parameter (repeatable)",
+    (v: string, acc: string[]) => [...acc, v],
+    [] as string[],
+  )
+  .action(async (slug: string, opts: { input: string; output: string; param: string[] }) =>
+    runCommand(slug, opts)
   );
 
 program.parse();

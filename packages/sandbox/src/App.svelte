@@ -1,8 +1,8 @@
 <script lang="ts">
   import ViewportPanel from "./components/panels/ViewportPanel.svelte";
-  import CodeEditorPanel from "./components/panels/CodeEditorPanel.svelte";
+  import ToastGallery from "./components/panels/ToastGallery.svelte";
 
-  let ratio = $state(0.48);
+  let ratio = $state(0.65);
   let dragging = false;
   let root: HTMLDivElement;
 
@@ -13,7 +13,7 @@
   function onDividerMove(e: PointerEvent) {
     if (!dragging) return;
     const rect = root.getBoundingClientRect();
-    ratio = Math.min(0.82, Math.max(0.18, (e.clientX - rect.left) / rect.width));
+    ratio = Math.min(0.85, Math.max(0.3, (e.clientX - rect.left) / rect.width));
   }
   function onDividerUp() { dragging = false; }
 </script>
@@ -32,7 +32,7 @@
   ></div>
 
   <div class="pane" style="flex:1; min-width:0">
-    <CodeEditorPanel />
+    <ToastGallery />
   </div>
 </div>
 
