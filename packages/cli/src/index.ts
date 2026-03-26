@@ -3,6 +3,7 @@ import { loginCommand } from "./commands/login.js";
 import { listCommand } from "./commands/list.js";
 import { publishCommand } from "./commands/publish.js";
 import { runCommand } from "./commands/run.js";
+import { batchCommand } from "./commands/batch.js";
 
 const program = new Command();
 
@@ -44,6 +45,21 @@ program
   )
   .action(async (slug: string, opts: { input: string; output: string; param: string[] }) =>
     runCommand(slug, opts)
+  );
+
+program
+  .command("batch <slug>")
+  .description("apply a toast to all images in a directory or list file")
+  .requiredOption("-i, --input <path>", "input directory or .txt file with paths")
+  .requiredOption("-o, --output <path>", "output directory")
+  .option(
+    "--param <key=value>",
+    "toast parameter (repeatable)",
+    (v: string, acc: string[]) => [...acc, v],
+    [] as string[],
+  )
+  .action(async (slug: string, opts: { input: string; output: string; param: string[] }) =>
+    batchCommand(slug, opts)
   );
 
 program.parse();
