@@ -96,6 +96,9 @@ mosaic render   --segments ./frames/segments.json --assets ./assets/ -o result.m
 - [x] mosaic: render (ассеты → видео, per-frame segments, ротация тайлов)
 - [x] mosaic frames: per-frame сегментация (дребезжание прямоугольников)
 - [ ] **1.5g** 🔥 mosaic render: первый рендер с реальными ассетами
+  - Стратегия: disk-first, не грузим ассеты в RAM
+  - Нейминг ассетов на диске → индексный JSON → рендер читает с диска по одному
+  - `assets/downloaded/` → `assets/index.json` (slug, path, type, tags)
 - [ ] **1.5f** mosaic: производительность — даунскейл для сегментации
 
 ### Фаза 2 — Sandbox/GUI
@@ -107,6 +110,21 @@ mosaic render   --segments ./frames/segments.json --assets ./assets/ -o result.m
 - [ ] API (Hono) + SQLite
 - [ ] Web (Go)
 - [ ] Docker compose + GitHub Actions
+
+### Фаза 5 — Beat-synced content factory
+- [ ] **Beat extractor** — читает BPM и таймкоды из mp3/wav (aubio CLI: `aubio tempo`)
+  - Выход: `beats.json` — массив таймкодов `[0.5, 1.0, 1.5, ...]`
+- [ ] **Frame scheduler** — маппит сегменты тоста на таймкоды
+  - Каждый бит → новый кадр; кадр держится до следующего бита
+  - Выход: список `{ frame_path, duration_ms }`
+- [ ] **ffmpeg compositor** — собирает sequence + audio в mp4
+  - `concat demuxer` с `duration` на кадр → видеопоток
+  - `-i music.mp3` → накладывает аудио
+- [ ] Интеграция: `mosaic bake --music music.mp3 --assets ./assets/ -o result.mp4`
+
+**Зависимости:** aubio CLI (`apt install aubio-tools`), ffmpeg (уже есть)
+
+---
 
 ### Фаза 4 — Ассеты (низкий приоритет)
 - [ ] Классическая и современная живопись (Wikimedia Commons: Category:Paintings)

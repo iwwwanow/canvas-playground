@@ -1,6 +1,6 @@
 import { mkdirSync, createWriteStream, unlinkSync } from "node:fs";
 import { writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, extname, basename } from "node:path";
 import { get as httpsGet } from "node:https";
 import sharp from "sharp";
 import { MosaicSegment } from "@xtc-toaster/core";
