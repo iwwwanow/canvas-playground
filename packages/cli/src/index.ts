@@ -8,6 +8,7 @@ import {
   mosaicSegmentCommand,
   mosaicFramesCommand,
   mosaicRenderCommand,
+  mosaicBatchRenderCommand,
   collectAssetsCommand,
 } from "./commands/mosaic.js";
 
@@ -121,5 +122,19 @@ mosaic
     segments: string; assets: string; output: string;
     duration?: number; fps?: number; format?: "mp4" | "gif";
   }) => mosaicRenderCommand(opts));
+
+mosaic
+  .command("batch-render")
+  .description("render multiple segments.json into videos, loading assets only once")
+  .requiredOption("--segments <paths...>", "one or more segments.json paths")
+  .requiredOption("--assets <dir>", "directory with assets")
+  .requiredOption("-o, --output-dir <dir>", "output directory for rendered videos")
+  .option("--duration <s>", "output duration in seconds (default 5)", parseFloat)
+  .option("--fps <n>", "frames per second (default 24)", parseInt)
+  .option("--format <fmt>", "output format: mp4 or gif (default mp4)")
+  .action((opts: {
+    segments: string[]; assets: string; outputDir: string;
+    duration?: number; fps?: number; format?: "mp4" | "gif";
+  }) => mosaicBatchRenderCommand(opts));
 
 program.parse();

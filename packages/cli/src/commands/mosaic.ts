@@ -153,7 +153,7 @@ export async function collectAssetsCommand(opts: CollectAssetsOptions): Promise<
   for (let i = 0; i < count; i++) {
     const seed = opts.query ? `${opts.query}-${i}` : String(i + 1);
     // 640×360: small enough to be fast, large enough for detail
-    const url = `https://picsum.photos/seed/${seed}/640/360`;
+    const url = `https://picsum.photos/seed/${seed}/320/320`;
     const dest = join(opts.output, `asset_${String(i).padStart(3, "0")}.jpg`);
     try {
       await downloadFile(url, dest);
@@ -166,6 +166,7 @@ export async function collectAssetsCommand(opts: CollectAssetsOptions): Promise<
 
   process.stdout.write(`\n`);
   console.log(`${downloaded} assets saved → ${opts.output}/`);
+  process.exit(0);
 }
 
 // ─── mosaic render ───────────────────────────────────────────────────────────
@@ -219,7 +220,7 @@ class AssetScheduler {
     const ranked = this.getRanking(clusterId, color);
 
     if (!this.swapStates.has(clusterId)) {
-      const durationFrames = Math.round(this.fps * (1 + Math.random() * 4));
+      const durationFrames = Math.max(1, Math.round(this.fps * (0.2 + Math.random() * 0.8)));
       this.swapStates.set(clusterId, { rankIdx: 0, nextSwapFrame: durationFrames });
       return ranked[0];
     }
@@ -227,7 +228,7 @@ class AssetScheduler {
     const state = this.swapStates.get(clusterId)!;
     if (frameIdx >= state.nextSwapFrame) {
       state.rankIdx = (state.rankIdx + 1) % ranked.length;
-      const durationFrames = Math.round(this.fps * (1 + Math.random() * 4));
+      const durationFrames = Math.max(1, Math.round(this.fps * (0.2 + Math.random() * 0.8)));
       state.nextSwapFrame = frameIdx + durationFrames;
     }
 
@@ -235,55 +236,77 @@ class AssetScheduler {
   }
 }
 
-export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<void> {
-  const segFile: MosaicSegmentsFile = JSON.parse((await readFile(opts.segments)).toString());
-  const { width, height, segments: allSegments, fps: fileFps } = segFile;
+// ─── shared asset loader ─────────────────────────────────────────────────────
 
-  const fps = opts.fps ?? fileFps ?? 24;
-  const format = opts.format ?? "mp4";
-  const duration = opts.duration ?? 5;
-  const totalFrames = Math.round(duration * fps);
+const MAX_ASSETS = 200;
+const ASSET_MAX_DIM = 160;
+const MAX_FRAMES_PER_ASSET = 4;
 
-  console.log(`Loading assets from ${opts.assets}...`);
-  const assetPaths = await scanAssetsDir(opts.assets);
+type LoadedAsset = Awaited<ReturnType<typeof loadAsset>>;
+
+async function loadAssets(assetsDir: string): Promise<LoadedAsset[]> {
+  const assetPaths = await scanAssetsDir(assetsDir);
   if (assetPaths.length === 0) { console.error("No assets found."); process.exit(1); }
 
-  // Cap asset count to avoid OOM: shuffle and take first N
-  const MAX_ASSETS = 120;
   const shuffled = assetPaths.sort(() => Math.random() - 0.5).slice(0, MAX_ASSETS);
   console.log(`Found ${assetPaths.length} asset(s), using ${shuffled.length}. Extracting frames...`);
 
-  // Load assets sequentially to keep memory footprint low, 8 frames max per asset
-  const MAX_FRAMES_PER_ASSET = 8;
-  const assets: Awaited<ReturnType<typeof loadAsset>>[] = [];
+  const assets: LoadedAsset[] = [];
   for (let i = 0; i < shuffled.length; i++) {
     process.stdout.write(`\r  ${i+1}/${shuffled.length}`);
-    assets.push(await loadAsset(shuffled[i], MAX_FRAMES_PER_ASSET));
+    const raw = await loadAsset(shuffled[i], MAX_FRAMES_PER_ASSET);
+    const needsResize = raw.width > ASSET_MAX_DIM || raw.height > ASSET_MAX_DIM;
+    if (needsResize) {
+      const scale = Math.min(ASSET_MAX_DIM / raw.width, ASSET_MAX_DIM / raw.height);
+      const dstW = Math.max(1, Math.round(raw.width * scale));
+      const dstH = Math.max(1, Math.round(raw.height * scale));
+      const resized: Buffer[] = [];
+      for (const frame of raw.frames) {
+        const { data } = await sharp(frame, { raw: { width: raw.width, height: raw.height, channels: 4 } })
+          .resize(dstW, dstH, { fit: "fill" })
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        resized.push(data);
+      }
+      assets.push({ frames: resized, width: dstW, height: dstH });
+    } else {
+      assets.push(raw);
+    }
   }
   process.stdout.write("\n");
+  return assets;
+}
+
+async function renderSegments(
+  assets: LoadedAsset[],
+  segFile: MosaicSegmentsFile,
+  output: string,
+  opts: { fps?: number; duration?: number; format?: "mp4" | "gif" },
+): Promise<void> {
+  const { width, height, segments: allSegments, fps: fileFps } = segFile;
+  const fps = opts.fps ?? fileFps ?? 24;
+  const format = opts.format ?? "mp4";
+  const totalFrames = Math.round((opts.duration ?? 5) * fps);
 
   const assetAvgColors: Array<[number, number, number]> = assets.map(a => {
     const mid = a.frames[Math.floor(a.frames.length / 2)];
     return avgColor(mid, a.width, a.height);
   });
-
   const scheduler = new AssetScheduler(assetAvgColors, fps);
 
   console.log(`Rendering ${totalFrames} frames (${width}×${height}, ${fps}fps)...`);
-  const stream = openVideoStream(width, height, fps, format, opts.output);
+  const stream = openVideoStream(width, height, fps, format, output);
 
   for (let f = 0; f < totalFrames; f++) {
     const segments = allSegments[f % allSegments.length];
 
     const compositeInputs: sharp.OverlayOptions[] = await mapConcurrent(
-      segments, 4, async (seg) => {
+      segments, 2, async (seg) => {
         const assetIdx = scheduler.getAssetIdx(seg.clusterId, seg.color, f);
         const asset = assets[assetIdx];
         const frameIdx = f % asset.frames.length;
         const srcBuf = asset.frames[frameIdx];
 
-        // Resize to tile dimensions, then rotate if needed
-        // Clamp to canvas size — sharp rejects composite inputs larger than base
         const tileW = Math.max(1, Math.min(Math.round(seg.width), width));
         const tileH = Math.max(1, Math.min(Math.round(seg.height), height));
         let tilePipeline = sharp(srcBuf, {
@@ -294,12 +317,10 @@ export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<vo
         let tileHeight = tileH;
 
         if (seg.angle !== 0) {
-          // Rotate expands canvas to fit rotated rect
           let rotPipeline = tilePipeline
             .rotate(seg.angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
             .ensureAlpha();
 
-          // Clamp to canvas size to satisfy sharp composite constraint
           const radians = Math.abs(seg.angle * Math.PI / 180);
           const cos = Math.abs(Math.cos(radians)), sin = Math.abs(Math.sin(radians));
           const rotW = Math.ceil(tileW * cos + tileH * sin);
@@ -309,26 +330,18 @@ export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<vo
             rotPipeline = rotPipeline.resize(Math.max(1, Math.floor(rotW * scale)), Math.max(1, Math.floor(rotH * scale))) as typeof rotPipeline;
           }
 
-          const { data: rotated, info: rotInfo } = await rotPipeline
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-
+          const { data: rotated, info: rotInfo } = await rotPipeline.raw().toBuffer({ resolveWithObject: true });
           tileWidth = rotInfo.width;
           tileHeight = rotInfo.height;
 
           return {
             input: Buffer.from(rotated.buffer),
             raw: { width: tileWidth, height: tileHeight, channels: 4 as const },
-            // Center on segment center
             left: Math.round(seg.cx - tileWidth / 2),
             top: Math.round(seg.cy - tileHeight / 2),
           };
         } else {
-          const { data: tile } = await tilePipeline
-            .ensureAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-
+          const { data: tile } = await tilePipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
           return {
             input: Buffer.from(tile.buffer),
             raw: { width: tileWidth, height: tileHeight, channels: 4 as const },
@@ -339,20 +352,62 @@ export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<vo
       }
     );
 
-    const { data: frameData } = await sharp({
+    const COMPOSITE_CHUNK = 200;
+    let frameBuffer: Buffer = await sharp({
       create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
-    })
-      .composite(compositeInputs)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+    }).raw().toBuffer();
 
-    await stream.writeFrame(new Uint8ClampedArray(frameData.buffer));
+    for (let c = 0; c < compositeInputs.length; c += COMPOSITE_CHUNK) {
+      const chunk = compositeInputs.slice(c, c + COMPOSITE_CHUNK);
+      const { data } = await sharp(frameBuffer, { raw: { width, height, channels: 4 } })
+        .composite(chunk)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      frameBuffer = data;
+    }
+
+    await stream.writeFrame(new Uint8ClampedArray(frameBuffer.buffer));
     if ((f + 1) % 10 === 0 || f === totalFrames - 1)
       process.stdout.write(`\r  ${f+1}/${totalFrames} frames composed`);
   }
   process.stdout.write("\n");
-
   process.stdout.write("Finalizing video...\n");
   await stream.close();
-  console.log(`Mosaic rendered → ${opts.output}`);
+  console.log(`Mosaic rendered → ${output}`);
+}
+
+export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<void> {
+  const segFile: MosaicSegmentsFile = JSON.parse((await readFile(opts.segments)).toString());
+  console.log(`Loading assets from ${opts.assets}...`);
+  const assets = await loadAssets(opts.assets);
+  await renderSegments(assets, segFile, opts.output, opts);
+}
+
+// ─── mosaic batch-render ──────────────────────────────────────────────────────
+
+export interface MosaicBatchRenderOptions {
+  segments: string[];      // multiple segments.json paths
+  assets: string;
+  outputDir: string;
+  duration?: number;
+  fps?: number;
+  format?: "mp4" | "gif";
+}
+
+export async function mosaicBatchRenderCommand(opts: MosaicBatchRenderOptions): Promise<void> {
+  const { mkdirSync } = await import("node:fs");
+  mkdirSync(opts.outputDir, { recursive: true });
+
+  console.log(`Loading assets from ${opts.assets} (once for all renders)...`);
+  const assets = await loadAssets(opts.assets);
+
+  for (let i = 0; i < opts.segments.length; i++) {
+    const segPath = opts.segments[i];
+    const name = segPath.replace(/.*\//, "").replace(/\/segments\.json$/, "").replace(/segments\.json$/, "seg");
+    const outFile = `${opts.outputDir}/${name}.${opts.format ?? "mp4"}`;
+    console.log(`\n[${i+1}/${opts.segments.length}] ${segPath} → ${outFile}`);
+    const segFile: MosaicSegmentsFile = JSON.parse((await readFile(segPath)).toString());
+    await renderSegments(assets, segFile, outFile, opts);
+  }
+  console.log(`\nAll done → ${opts.outputDir}/`);
 }
