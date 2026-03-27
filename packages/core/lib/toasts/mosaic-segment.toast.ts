@@ -7,6 +7,7 @@ export interface MosaicSegmentParams {
   minRegionSize?: number;  // min pixels per region, smaller are discarded (default 200)
   maxAspect?: number;      // max rectangle aspect ratio, e.g. 7 means 7:1 (default 7)
   overshoot?: number;      // allowed overshoot beyond region boundary, 0–1 (default 0.08)
+  gap?: number;            // pixels to shrink each rect inward on all sides (default 4)
 }
 
 export interface Segment {
@@ -139,6 +140,7 @@ function fitRect(
   imageWidth: number,
   maxAspect: number,
   overshoot: number,
+  gap: number,
 ): FittedRect {
   const n = pixels.length;
 
@@ -196,8 +198,8 @@ function fitRect(
     if (projMinor > maxMinor) maxMinor = projMinor;
   }
 
-  let extMajor = (maxMajor - minMajor) * (1 + overshoot);
-  let extMinor = (maxMinor - minMinor) * (1 + overshoot);
+  let extMajor = (maxMajor - minMajor) * (1 + overshoot) - gap * 2;
+  let extMinor = (maxMinor - minMinor) * (1 + overshoot) - gap * 2;
 
   // Ensure minimum size of 2px each side
   extMajor = Math.max(extMajor, 4);
@@ -229,6 +231,7 @@ export function segment(
     minRegionSize = 200,
     maxAspect = 7,
     overshoot = 0.08,
+    gap = 4,
   } = params;
 
   const totalPixels = width * height;
@@ -253,7 +256,7 @@ export function segment(
 
     const colorClass = classes[pixels[0]];
     const color = classToRgb(colorClass, tones, hues);
-    const rect = fitRect(pixels, width, maxAspect, overshoot);
+    const rect = fitRect(pixels, width, maxAspect, overshoot, gap);
 
     segments.push({
       cx: rect.cx,
@@ -270,12 +273,12 @@ export function segment(
   return segments;
 }
 
-// ─── Visualization ──────────────────────────────────────────────────────────
+// ─── Rasterization helpers ───────────────────────────────────────────────────
 
 function drawLine(
   out: Uint8ClampedArray, w: number, h: number,
   x0: number, y0: number, x1: number, y1: number,
-  r: number, g: number, b: number,
+  r: number, g: number, b: number, a: number,
 ): void {
   let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
   let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
@@ -285,7 +288,7 @@ function drawLine(
   for (let steps = 0; steps < 8192; steps++) {
     if (cx >= 0 && cx < w && cy >= 0 && cy < h) {
       const i = (cy * w + cx) * 4;
-      out[i] = r; out[i+1] = g; out[i+2] = b; out[i+3] = 255;
+      out[i] = r; out[i+1] = g; out[i+2] = b; out[i+3] = a;
     }
     if (cx === Math.round(x1) && cy === Math.round(y1)) break;
     const e2 = 2 * err;
@@ -294,42 +297,73 @@ function drawLine(
   }
 }
 
-function drawRotatedRect(
-  out: Uint8ClampedArray, imgW: number, imgH: number,
-  cx: number, cy: number, w: number, h: number,
-  angleDeg: number, r: number, g: number, b: number,
+/** Scanline fill of a convex polygon (corners in order). */
+function fillPolygon(
+  out: Uint8ClampedArray, w: number, h: number,
+  corners: [number, number][],
+  r: number, g: number, b: number, a: number,
 ): void {
-  const rad = (angleDeg * Math.PI) / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  const hw = w / 2, hh = h / 2;
+  const minY = Math.max(0, Math.floor(Math.min(...corners.map(c => c[1]))));
+  const maxY = Math.min(h - 1, Math.ceil(Math.max(...corners.map(c => c[1]))));
+  const n = corners.length;
 
-  const corners: [number, number][] = [
-    [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
-  ].map(([lx, ly]) => [
-    cx + lx * cos - ly * sin,
-    cy + lx * sin + ly * cos,
-  ]) as [number, number][];
-
-  for (let i = 0; i < 4; i++) {
-    const [ax, ay] = corners[i];
-    const [bx, by] = corners[(i + 1) % 4];
-    drawLine(out, imgW, imgH, ax, ay, bx, by, r, g, b);
+  for (let y = minY; y <= maxY; y++) {
+    const xs: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = corners[i];
+      const [bx, by] = corners[(i + 1) % n];
+      if ((ay <= y && by > y) || (by <= y && ay > y)) {
+        xs.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
+      }
+    }
+    if (xs.length < 2) continue;
+    xs.sort((a, b) => a - b);
+    const x0 = Math.max(0, Math.ceil(xs[0]));
+    const x1 = Math.min(w - 1, Math.floor(xs[xs.length - 1]));
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * w + x) * 4;
+      out[i] = r; out[i+1] = g; out[i+2] = b; out[i+3] = a;
+    }
   }
 }
 
-/** Draw segment outlines on the original frame (no fill, no recomputation). */
+function rectCorners(
+  cx: number, cy: number, rw: number, rh: number, angleDeg: number,
+): [number, number][] {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const hw = rw / 2, hh = rh / 2;
+  return ([ [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh] ] as [number, number][])
+    .map(([lx, ly]) => [cx + lx * cos - ly * sin, cy + lx * sin + ly * cos] as [number, number]);
+}
+
+function drawRotatedRectOutline(
+  out: Uint8ClampedArray, imgW: number, imgH: number,
+  cx: number, cy: number, rw: number, rh: number,
+  angleDeg: number, r: number, g: number, b: number, a: number,
+): void {
+  const corners = rectCorners(cx, cy, rw, rh, angleDeg);
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = corners[i];
+    const [bx, by] = corners[(i + 1) % 4];
+    drawLine(out, imgW, imgH, ax, ay, bx, by, r, g, b, a);
+  }
+}
+
+// ─── Visualization ───────────────────────────────────────────────────────────
+
+/** Render segments as colored filled rectangles on a transparent background. */
 export function visualize(
-  data: Uint8ClampedArray,
+  _data: Uint8ClampedArray,
   width: number,
   height: number,
   segs: Segment[],
 ): Uint8ClampedArray {
-  const out = new Uint8ClampedArray(data); // copy original
+  const out = new Uint8ClampedArray(width * height * 4); // transparent
   for (const seg of segs) {
-    // Shadow border (1px larger, black)
-    drawRotatedRect(out, width, height, seg.cx, seg.cy, seg.width + 2, seg.height + 2, seg.angle, 0, 0, 0);
-    // White outline
-    drawRotatedRect(out, width, height, seg.cx, seg.cy, seg.width, seg.height, seg.angle, 255, 255, 255);
+    const [r, g, b] = seg.color;
+    const corners = rectCorners(seg.cx, seg.cy, seg.width, seg.height, seg.angle);
+    fillPolygon(out, width, height, corners, r, g, b, 255);
   }
   return out;
 }
@@ -352,26 +386,10 @@ export function bake(
   _outputPath?: string,
   onProgress?: ProgressFn,
 ): ToastOutput {
-  onProgress?.(0, 3, "posterizing");
+  onProgress?.(0, 2, "segmenting");
   const segs = segment(data, width, height, params);
-  onProgress?.(1, 3, "drawing");
-
-  // Posterized background + outlines
-  const out = new Uint8ClampedArray(width * height * 4);
-  const { tones = 6, hues = 6 } = params;
-
-  for (let i = 0; i < width * height; i++) {
-    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-    const cls = posterizePixel(r, g, b, tones, hues);
-    const [pr, pg, pb] = classToRgb(cls, tones, hues);
-    out[i * 4] = pr; out[i * 4 + 1] = pg; out[i * 4 + 2] = pb; out[i * 4 + 3] = 255;
-  }
-
-  for (const seg of segs) {
-    drawRotatedRect(out, width, height, seg.cx, seg.cy, seg.width + 2, seg.height + 2, seg.angle, 0, 0, 0);
-    drawRotatedRect(out, width, height, seg.cx, seg.cy, seg.width, seg.height, seg.angle, 255, 255, 255);
-  }
-
-  onProgress?.(3, 3, "done");
+  onProgress?.(1, 2, "drawing");
+  const out = visualize(data, width, height, segs);
+  onProgress?.(2, 2, "done");
   return { type: "image", data: out };
 }
