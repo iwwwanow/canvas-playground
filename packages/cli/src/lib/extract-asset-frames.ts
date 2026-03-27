@@ -127,24 +127,35 @@ export async function extractAssetFrames(
   throw new Error(`Unsupported asset format: ${ext}`);
 }
 
-/** Scan a directory for usable media assets (images, videos, gifs, or subdirs with PNGs). */
+/** Scan a directory recursively for usable media assets (images, videos, gifs, or subdirs with PNGs). */
 export async function scanAssetsDir(assetsDir: string): Promise<string[]> {
   const ALL_EXTS = new Set([...VIDEO_EXTS, ...IMAGE_EXTS, ".gif"]);
-  const entries = await readdir(assetsDir, { withFileTypes: true });
   const paths: string[] = [];
 
-  for (const entry of entries) {
-    const full = join(assetsDir, entry.name);
-    if (entry.isDirectory()) {
-      // Treat as PNG sequence
-      const sub = await readdir(full);
-      const hasPngs = sub.some(f => extname(f).toLowerCase() === ".png");
-      if (hasPngs) paths.push(full + "/");  // trailing slash marks it as a sequence dir
-    } else if (ALL_EXTS.has(extname(entry.name).toLowerCase())) {
-      paths.push(full);
+  async function scan(dir: string): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    const files = entries.filter(e => e.isFile());
+    const subdirs = entries.filter(e => e.isDirectory());
+
+    // Check if this dir is a PNG sequence
+    const hasPngs = files.some(f => extname(f.name).toLowerCase() === ".png");
+    if (hasPngs) {
+      paths.push(dir + "/");
+      return; // don't recurse into PNG sequence dirs
+    }
+
+    for (const file of files) {
+      if (ALL_EXTS.has(extname(file.name).toLowerCase())) {
+        paths.push(join(dir, file.name));
+      }
+    }
+
+    for (const sub of subdirs) {
+      await scan(join(dir, sub.name));
     }
   }
 
+  await scan(assetsDir);
   return paths;
 }
 

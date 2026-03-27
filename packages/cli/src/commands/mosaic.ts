@@ -222,14 +222,18 @@ export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<vo
   const assetPaths = await scanAssetsDir(opts.assets);
   if (assetPaths.length === 0) { console.error("No assets found."); process.exit(1); }
 
-  console.log(`Found ${assetPaths.length} asset(s). Extracting frames...`);
-  const maxFrames = Math.max(totalFrames, 48);
-  const assets = await Promise.all(
-    assetPaths.map(async (p, i) => {
-      process.stdout.write(`\r  ${i+1}/${assetPaths.length}`);
-      return loadAsset(p, maxFrames);
-    })
-  );
+  // Cap asset count to avoid OOM: shuffle and take first N
+  const MAX_ASSETS = 60;
+  const shuffled = assetPaths.sort(() => Math.random() - 0.5).slice(0, MAX_ASSETS);
+  console.log(`Found ${assetPaths.length} asset(s), using ${shuffled.length}. Extracting frames...`);
+
+  // Load assets sequentially to keep memory footprint low, 8 frames max per asset
+  const MAX_FRAMES_PER_ASSET = 8;
+  const assets: Awaited<ReturnType<typeof loadAsset>>[] = [];
+  for (let i = 0; i < shuffled.length; i++) {
+    process.stdout.write(`\r  ${i+1}/${shuffled.length}`);
+    assets.push(await loadAsset(shuffled[i], MAX_FRAMES_PER_ASSET));
+  }
   process.stdout.write("\n");
 
   const assetAvgColors: Array<[number, number, number]> = assets.map(a => {
