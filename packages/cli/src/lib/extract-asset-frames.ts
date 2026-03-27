@@ -4,6 +4,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { tmpdir } from "node:os";
+import { mapConcurrent } from "./concurrent.js";
 
 const VIDEO_EXTS = new Set([".mp4", ".webm", ".avi", ".mov", ".mkv"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".tiff"]);
@@ -66,14 +67,15 @@ async function extractVideoFrames(filePath: string, maxFrames: number): Promise<
     const first = await sharp(join(tmpDir, files[0])).metadata();
     const { width = 640, height = 360 } = first;
 
-    const frames = await Promise.all(
-      files.map(f =>
-        sharp(join(tmpDir, f))
-          .ensureAlpha()
-          .raw()
-          .toBuffer()
-      )
+    const results = await mapConcurrent(files, 4, (f) =>
+      sharp(join(tmpDir, f))
+        .ensureAlpha()
+        .raw()
+        .toBuffer()
+        .catch(() => null)
     );
+    const frames = results.filter((b): b is Buffer => b !== null);
+    if (frames.length === 0) throw new Error(`All frames corrupted in ${filePath}`);
 
     return { frames, width, height };
   } finally {
@@ -92,13 +94,11 @@ async function extractGifFrames(filePath: string, maxFrames: number): Promise<As
     indices.push(i);
   }
 
-  const frames = await Promise.all(
-    indices.map(page =>
-      sharp(filePath, { page })
-        .ensureAlpha()
-        .raw()
-        .toBuffer()
-    )
+  const frames = await mapConcurrent(indices, 4, (page) =>
+    sharp(filePath, { page })
+      .ensureAlpha()
+      .raw()
+      .toBuffer()
   );
 
   return { frames, width, height };
@@ -172,8 +172,8 @@ export async function extractSequenceDir(dirPath: string, maxFrames: number): Pr
   const first = await sharp(join(dir, files[0])).metadata();
   const { width = 100, height = 100 } = first;
 
-  const frames = await Promise.all(
-    files.map(f => sharp(join(dir, f)).ensureAlpha().raw().toBuffer())
+  const frames = await mapConcurrent(files, 4, (f) =>
+    sharp(join(dir, f)).ensureAlpha().raw().toBuffer()
   );
 
   return { frames, width, height };

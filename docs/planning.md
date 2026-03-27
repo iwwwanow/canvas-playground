@@ -101,6 +101,19 @@ mosaic render   --segments ./frames/segments.json --assets ./assets/ -o result.m
   - `assets/downloaded/` → `assets/index.json` (slug, path, type, tags)
 - [ ] **1.5f** mosaic: производительность — даунскейл для сегментации
 
+### Фаза 1.5 — Производительность (ПРИОРИТЕТ: машина слабая, зависает)
+
+- [ ] **P1** `mosaic render` — убрать `Promise.all` по сегментам: заменить на batched concurrency (4 одновременно)
+  - Файл: `packages/cli/src/commands/mosaic.ts:277`
+  - Сейчас: 100–500 sharp-операций параллельно на каждый кадр → OOM
+  - Фикс: утилита `mapConcurrent(arr, limit, fn)`, лимит = 4
+- [ ] **P2** `mosaic render` — не копить все кадры в RAM, стримить напрямую в ffmpeg
+  - Файл: `packages/cli/src/commands/mosaic.ts:272` — `outputFrames[]` растёт до 1+ ГБ
+  - Фикс: открыть ffmpeg через stdin-pipe, писать кадры по одному, закрыть → mp4
+- [ ] **P3** `extract-asset-frames` — `Promise.all` на декодирование фреймов → batched
+  - Файл: `packages/cli/src/lib/extract-asset-frames.ts:69,98`
+  - Менее критично (ограничено maxFrames=8), но добавить лимит для единообразия
+
 ### Фаза 2 — Sandbox/GUI
 - [ ] Подключить timeline к viewport
 - [ ] CodeMirror для bake-функции

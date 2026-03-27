@@ -1,21 +1,11 @@
-import { mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { spawn } from "node:child_process";
-import sharp from "sharp";
 
-function ffmpeg(args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("ffmpeg", ["-y", ...args], { stdio: ["ignore", "ignore", "pipe"] });
-    let stderr = "";
-    proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited ${code}:\n${stderr.slice(-500)}`));
-    });
-  });
+export interface VideoStream {
+  writeFrame(data: Uint8ClampedArray): Promise<void>;
+  close(): Promise<void>;
 }
 
+/** Assemble an array of RGBA frames into a video file. */
 export async function assembleVideo(
   frames: Uint8ClampedArray[],
   width: number,
@@ -24,43 +14,67 @@ export async function assembleVideo(
   format: "mp4" | "gif",
   outputPath: string,
 ): Promise<void> {
-  const tmpDir = join(tmpdir(), `toast-frames-${Date.now()}`);
-  mkdirSync(tmpDir, { recursive: true });
+  const stream = openVideoStream(width, height, fps, format, outputPath);
+  for (const frame of frames) {
+    await stream.writeFrame(frame);
+  }
+  await stream.close();
+}
 
-  try {
-    process.stdout.write(`Rendering ${frames.length} frames`);
-    for (let i = 0; i < frames.length; i++) {
-      const framePath = join(tmpDir, `frame_${String(i).padStart(5, "0")}.png`);
-      await sharp(Buffer.from(frames[i].buffer), {
-        raw: { width, height, channels: 4 },
-      }).png().toFile(framePath);
-      if ((i + 1) % 30 === 0 || i === frames.length - 1)
-        process.stdout.write(`\r${i + 1}/${frames.length} frames written`);
-    }
-    process.stdout.write(`\nEncoding ${format.toUpperCase()}...\n`);
+/** Open an ffmpeg stdin-pipe that accepts raw RGBA frames. */
+export function openVideoStream(
+  width: number,
+  height: number,
+  fps: number,
+  format: "mp4" | "gif",
+  outputPath: string,
+): VideoStream {
+  // libx264 requires even dimensions
+  const w = width % 2 === 0 ? width : width + 1;
+  const h = height % 2 === 0 ? height : height + 1;
 
-    // libx264 requires even dimensions
-    const w = width % 2 === 0 ? width : width + 1;
-    const h = height % 2 === 0 ? height : height + 1;
-
-    if (format === "mp4") {
-      await ffmpeg([
-        "-framerate", String(fps),
-        "-i", join(tmpDir, "frame_%05d.png"),
+  const args = format === "mp4"
+    ? [
+        "-f", "rawvideo", "-pix_fmt", "rgba",
+        "-s", `${width}x${height}`,
+        "-r", String(fps),
+        "-i", "pipe:0",
         "-vf", `pad=${w}:${h}`,
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         outputPath,
-      ]);
-    } else {
-      await ffmpeg([
-        "-framerate", String(fps),
-        "-i", join(tmpDir, "frame_%05d.png"),
+      ]
+    : [
+        "-f", "rawvideo", "-pix_fmt", "rgba",
+        "-s", `${width}x${height}`,
+        "-r", String(fps),
+        "-i", "pipe:0",
         "-vf", `fps=${fps},split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`,
         outputPath,
-      ]);
-    }
-  } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
-  }
+      ];
+
+  const proc = spawn("ffmpeg", ["-y", ...args], { stdio: ["pipe", "ignore", "pipe"] });
+  let stderr = "";
+  proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+
+  const finished = new Promise<void>((resolve, reject) => {
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited ${code}:\n${stderr.slice(-500)}`));
+    });
+  });
+
+  return {
+    async writeFrame(data: Uint8ClampedArray): Promise<void> {
+      const buf = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      const ok = proc.stdin!.write(buf);
+      if (!ok) {
+        await new Promise<void>((resolve) => proc.stdin!.once("drain", resolve));
+      }
+    },
+    async close(): Promise<void> {
+      proc.stdin!.end();
+      await finished;
+    },
+  };
 }

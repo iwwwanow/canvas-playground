@@ -15,6 +15,10 @@ dist-ssr
 # Generated output
 batch-out/
 
+# Downloaded assets (воспроизводятся скриптом scripts/download-pexels.sh)
+assets/downloaded/
+assets/input/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
