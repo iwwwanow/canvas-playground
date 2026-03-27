@@ -75,40 +75,45 @@ toast batch hue-scan -i ./photos/ -o ./results/ --param hue=90
 ### Toast 2: `mosaic`
 Мозаичная замена регионов **видео** на медиафайлы (изображения, видео, gif). Многошаговый пайплайн.
 
-**Ключевые принципы:**
-- Прямоугольники сегментации следуют **тону/градиенту** изображения — некоторые наклонены (по доминирующему направлению края), некоторые нет
-- Инпут — видео (не одно изображение); сегментация вычисляется по референсному кадру
-- Каждый кластер получает ассет, подобранный по цветовой близости к центроиду кластера
+**Концепция (финал, 2026-03-27):**
 
-**Пайплайн (шаг за шагом):**
+**Этап 1 — Постеризация (тон + оттенок)**
+- Каждый пиксель → HSV → квантование: N уровней Value × M уровней Hue
+- Результат: дискретные цветовые пятна (≤ N×M классов + серые)
+
+**Этап 2 — Прямоугольники по форме пятна**
+- Для каждой связной области: PCA позиций пикселей → главная ось
+- Один прямоугольник на пятно, ориентированный по главной оси
+- Размер адаптивный (по охвату пятна), max aspect ratio 7:1
+- Допустимый выход за границу пятна: до 8%
+
+**⚠️ КРИТИЧНЫЙ НЕРЕАЛИЗОВАННЫЙ МОМЕНТ:**
+Сегментация **должна пересчитываться для каждого кадра видео**.
+Тогда прямоугольники будут «дрожать/дребезжать» — следовать за движением в видео.
+Сейчас: сегментация вычисляется один раз (кадр 0) и кешируется → все кадры одинаковые.
+→ Нужно убрать кеш в `mosaicFramesCommand`, считать `segment()` per-frame.
+→ Для производительности: рассмотреть даунскейл кадра перед сегментацией (напр. до 160×90),
+  а потом масштабировать сегменты обратно на оригинальный размер.
+
+**Пайплайн:**
 ```
 инпут-видео
-  → [mosaic frames]  секвенция кадров с нарисованными прямоугольниками (превью)
-  → [mosaic collect-assets]  скачать ассеты (Lorem Picsum или др. источник)
-  → [mosaic render]  заменить каждый прямоугольник на ассет, склеить видео
+  → [mosaic frames]  per-frame постеризация → прямоугольники → секвенция превью (дребезжание!)
+  → [mosaic collect-assets]  скачать ассеты
+  → [mosaic render]  per-frame: заменить прямоугольники на ассеты → склеить видео
 ```
 
 **CLI:**
 ```bash
-# Шаг 1: видео → секвенция прямоугольников (отладочный превью)
-toast mosaic frames -i input.mp4 -o ./frames/ --cell-size 32 -k 8
-# Результат: ./frames/frame_XXXXX.png + segments.json
-
-# Шаг 2: скачать ассеты (один раз)
-toast mosaic collect-assets -o ./assets/downloaded --count 20 [--query "nature"]
-
-# Шаг 3: рендеринг мозаичного видео
-toast mosaic render --segments ./frames/segments.json --assets ./assets/downloaded -o result.mp4 --duration 10
-
-# Дополнительно: сегментировать одиночное изображение
-toast mosaic segment -i input.jpg -o ./output/
+toast mosaic frames -i input.mp4 -o ./frames/ --tones 6 --hues 6
+toast mosaic collect-assets -o ./assets/ --count 24
+toast mosaic render --segments-dir ./frames/ --assets ./assets/ -o result.mp4 --duration 10
 ```
 
 **Параметры сегментации:**
-- `cellSize` — размер ячейки сетки в пикселях (default 32)
-- `k` — количество цветовых кластеров (default 8)
-- `gradientThreshold` — минимальная величина градиента для применения наклона (default 15)
-- `maxAngle` — максимальный угол наклона прямоугольника в градусах (default 40)
+- `tones` — уровни тона (Value), default 6. Меньше = крупнее пятна
+- `hues` — уровни оттенка (Hue), default 6. Меньше = крупнее пятна
+- `minRegionSize` — мин. пикселей в пятне (шумофильтр), default 200
 
 **Параметры рендера:**
 - `--segments` — путь к segments.json
@@ -126,10 +131,10 @@ toast mosaic segment -i input.jpg -o ./output/
 toast run <slug> -i <input> -o <output> [--param key=value ...]
 toast batch <slug> -i <dir|list.txt> -o <dir> [--param key=value ...]
 toast render -s <script.ts> -i <input> -o <output.mp4>   # скрипт → видео (будущее)
-toast mosaic frames -i <video> -o <dir> [--cell-size 32] [-k 8]
-toast mosaic collect-assets -o <dir> [--count 20] [--query <tag>]
-toast mosaic segment -i <image> -o <dir>     # для одиночного изображения
-toast mosaic render --segments <json> --assets <dir> -o <mp4> [--duration 10]
+toast mosaic frames -i <video> -o <dir> [--tones 6] [--hues 6]   # per-frame сегментация → дребезжание
+toast mosaic collect-assets -o <dir> [--count 24] [--query <tag>]
+toast mosaic segment -i <image> -o <dir>                          # одиночное изображение
+toast mosaic render --segments-dir <dir> --assets <dir> -o <mp4> [--duration 10]  # per-frame рендер
 toast list
 toast publish -n <name> -p <preview.gif> [-d <desc>]
 toast login <login> <password>
@@ -149,28 +154,33 @@ toast login <login> <password>
 
 ## Приоритеты (что делать сейчас)
 
-### Фаза 1 — CLI-first (текущий фокус)
-- [ ] **1.1** Расширить Toast-интерфейс: добавить `outputType`, обновить `BakeFn` → `Promise<ToastOutput>`
-- [ ] **1.2** Создать `hue-scan` тост (composition-6 → toast)
-- [ ] **1.3** Обновить `runCommand` под новый интерфейс (image vs video output)
-- [ ] **1.4** Добавить `toast batch` команду
-- [ ] **1.5** Реализовать `mosaic` тост (segment → collect → render)
+### Фаза 1 — CLI-first
+- [x] **1.1** Toast-интерфейс: outputType, BakeFn → Promise<ToastOutput>
+- [x] **1.2** hue-scan тост
+- [x] **1.3** runCommand (image / frames / video output)
+- [x] **1.4** toast batch
+- [x] **1.5a** mosaic: сегментация (постеризация + PCA прямоугольники)
+- [x] **1.5b** mosaic: collect-assets (Lorem Picsum)
+- [x] **1.5c** mosaic: render (ассеты → видео, ротация тайлов)
+- [ ] **1.5d** 🔥 mosaic frames: **per-frame сегментация** (убрать кеш → дребезжание прямоугольников)
+- [ ] **1.5e** mosaic render: **per-frame segments** (читать segments из директории, не одного файла)
+- [ ] **1.5f** mosaic: производительность — даунскейл для сегментации (160×90), масштабирование назад
 
 ### Фаза 2 — Sandbox/GUI
-- [ ] **2.1** Подключить timeline к viewport (треки управляют params)
-- [ ] **2.2** Добавить CodeMirror панель для написания bake-функции
-- [ ] **2.3** Кнопка "Сохранить как тост" → генерирует файл в `/lib/toasts/`
+- [ ] **2.1** Подключить timeline к viewport
+- [ ] **2.2** CodeMirror для bake-функции
+- [ ] **2.3** "Сохранить как тост"
 
 ### Фаза 3 — Инфраструктура
-- [ ] **3.1** API (Hono) + SQLite для хранения тостов
-- [ ] **3.2** Web-интерфейс (Go) для просмотра и прогона
-- [ ] **3.3** Docker compose для dev-режима
-- [ ] **3.4** GitHub Actions для сборки и публикации образов
+- [ ] **3.1** API (Hono) + SQLite
+- [ ] **3.2** Web (Go)
+- [ ] **3.3** Docker compose
+- [ ] **3.4** GitHub Actions
 
 ---
 
-## Нерешённые вопросы (mosaic)
+## Технические заметки
 
-- API-ключи Pexels/Pixabay: хранить в env (`.env` + `toast config set PEXELS_API_KEY=xxx`)
-- Алгоритм сегментации: bounding boxes поверх цветовых кластеров (k-means) — без opencv4nodejs, чистый TypeScript
-- FFmpeg: обязательная системная зависимость для mosaic-тоста
+- ffmpeg — обязательная системная зависимость (установлен: ubuntu noble 6.1.1)
+- Ассеты: Lorem Picsum (без ключа). Будущее: Pexels/Pixabay через env (`PEXELS_API_KEY`)
+- Сегментация per-frame медленная — оптимизация: сегментировать на 160×90, масштабировать сегменты × (W/160, H/90)

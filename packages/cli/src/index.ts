@@ -74,28 +74,28 @@ const mosaic = program
 
 mosaic
   .command("segment")
-  .description("segment an image into color regions and save rectangles")
+  .description("segment a single image into posterized regions and save rectangles")
   .requiredOption("-i, --input <path>", "input image path")
   .requiredOption("-o, --output <dir>", "output directory for segments.json and debug.png")
-  .option("--cell-size <n>", "grid cell size in pixels (default 32)", parseInt)
-  .option("-k, --k <n>", "number of color clusters (default 8)", parseInt)
-  .action((opts: { input: string; output: string; cellSize?: number; k?: number }) =>
+  .option("--tones <n>", "tone (Value) quantization levels (default 6)", parseInt)
+  .option("--hues <n>", "hue quantization levels (default 6)", parseInt)
+  .option("--min-region <n>", "min pixels per region (default 200)", parseInt)
+  .action((opts: { input: string; output: string; tones?: number; hues?: number; minRegion?: number }) =>
     mosaicSegmentCommand(opts)
   );
 
 mosaic
   .command("frames")
-  .description("extract video frames and overlay tonal rectangles — preview before render")
+  .description("extract video frames and overlay posterized rectangles — preview before render")
   .requiredOption("-i, --input <path>", "input video path")
   .requiredOption("-o, --output <dir>", "output dir for PNG sequence and segments.json")
   .option("--fps <n>", "extraction fps (default 24)", parseInt)
-  .option("--cell-size <n>", "cell size in pixels (default 32)", parseInt)
-  .option("-k, --k <n>", "color clusters (default 8)", parseInt)
-  .option("--gradient-threshold <n>", "min gradient magnitude for tilt (default 15)", parseFloat)
-  .option("--max-angle <n>", "max tilt angle in degrees (default 40)", parseFloat)
+  .option("--tones <n>", "tone quantization levels (default 6)", parseInt)
+  .option("--hues <n>", "hue quantization levels (default 6)", parseInt)
+  .option("--min-region <n>", "min pixels per region (default 200)", parseInt)
   .action((opts: {
-    input: string; output: string; fps?: number; cellSize?: number;
-    k?: number; gradientThreshold?: number; maxAngle?: number;
+    input: string; output: string; fps?: number;
+    tones?: number; hues?: number; minRegion?: number;
   }) => mosaicFramesCommand(opts));
 
 mosaic

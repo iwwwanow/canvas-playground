@@ -23,18 +23,16 @@ export interface MosaicSegmentsFile {
 export interface MosaicSegmentOptions {
   input: string;
   output: string;
-  cellSize?: number;
-  k?: number;
-  gradientThreshold?: number;
-  maxAngle?: number;
+  tones?: number;
+  hues?: number;
+  minRegion?: number;
 }
 
 export async function mosaicSegmentCommand(opts: MosaicSegmentOptions): Promise<void> {
   const params = {
-    cellSize: opts.cellSize ?? 32,
-    k: opts.k ?? 8,
-    gradientThreshold: opts.gradientThreshold ?? 15,
-    maxAngle: opts.maxAngle ?? 40,
+    tones: opts.tones ?? 6,
+    hues: opts.hues ?? 6,
+    minRegionSize: opts.minRegion ?? 200,
   };
 
   console.log(`Loading ${opts.input}...`);
@@ -68,22 +66,20 @@ export async function mosaicSegmentCommand(opts: MosaicSegmentOptions): Promise<
 // ─── mosaic frames (video → rect sequence) ──────────────────────────────────
 
 export interface MosaicFramesOptions {
-  input: string;      // input video path
-  output: string;     // output dir for PNG sequence
-  cellSize?: number;
-  k?: number;
+  input: string;
+  output: string;
   fps?: number;
-  gradientThreshold?: number;
-  maxAngle?: number;
+  tones?: number;
+  hues?: number;
+  minRegion?: number;
 }
 
 export async function mosaicFramesCommand(opts: MosaicFramesOptions): Promise<void> {
   const fps = opts.fps ?? 24;
   const params = {
-    cellSize: opts.cellSize ?? 32,
-    k: opts.k ?? 8,
-    gradientThreshold: opts.gradientThreshold ?? 15,
-    maxAngle: opts.maxAngle ?? 40,
+    tones: opts.tones ?? 6,
+    hues: opts.hues ?? 6,
+    minRegionSize: opts.minRegion ?? 200,
   };
 
   mkdirSync(opts.output, { recursive: true });
@@ -94,7 +90,7 @@ export async function mosaicFramesCommand(opts: MosaicFramesOptions): Promise<vo
 
   console.log(`Extracting frames from ${opts.input} at ${fps}fps...`);
   const result = await extractFrames(opts.input, fps, async (frame) => {
-    // Compute segments once from the first frame
+    // Compute segments once from the first frame, reuse for all subsequent frames
     if (frame.index === 0) {
       imgWidth = frame.width;
       imgHeight = frame.height;
@@ -102,19 +98,16 @@ export async function mosaicFramesCommand(opts: MosaicFramesOptions): Promise<vo
       segments = MosaicSegment.segment(frame.data, imgWidth, imgHeight, params);
       process.stdout.write(` ${segments.length} rectangles\n`);
 
-      // Save segments.json
       const file: MosaicSegmentsFile = { width: imgWidth, height: imgHeight, fps, segments };
       await writeFile(join(opts.output, "segments.json"), JSON.stringify(file, null, 2));
     }
 
-    // Draw rectangles on this frame using bake()
-    const debugOutput = MosaicSegment.bake(frame.data, imgWidth, imgHeight, params);
-    if (debugOutput.type === "image") {
-      const framePath = join(opts.output, `frame_${String(frame.index).padStart(5, "0")}.png`);
-      await sharp(Buffer.from(debugOutput.data.buffer), {
-        raw: { width: imgWidth, height: imgHeight, channels: 4 },
-      }).png().toFile(framePath);
-    }
+    // Reuse cached segments — no recomputation
+    const vizData = MosaicSegment.visualize(frame.data, imgWidth, imgHeight, segments!);
+    const framePath = join(opts.output, `frame_${String(frame.index).padStart(5, "0")}.png`);
+    await sharp(Buffer.from(vizData.buffer), {
+      raw: { width: imgWidth, height: imgHeight, channels: 4 },
+    }).png().toFile(framePath);
 
     frameCount++;
     if (frameCount % 10 === 0) {
