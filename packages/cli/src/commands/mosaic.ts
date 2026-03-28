@@ -1,5 +1,5 @@
 import { mkdirSync, createWriteStream, unlinkSync } from "node:fs";
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { get as httpsGet } from "node:https";
 import sharp from "sharp";
@@ -9,6 +9,11 @@ import { scanAssetsDir, loadAsset } from "../lib/extract-asset-frames.js";
 import { extractFrames } from "../lib/extract-video-frames.js";
 import { openVideoStream } from "../lib/assemble-video.js";
 import { mapConcurrent } from "../lib/concurrent.js";
+import {
+  buildAssetIndex,
+  loadAssetIndex,
+  saveAssetIndex,
+} from "../lib/asset-index.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -118,6 +123,34 @@ export async function mosaicFramesCommand(opts: MosaicFramesOptions): Promise<vo
   console.log(`Segments → ${join(opts.output, "segments.json")}`);
 }
 
+// ─── mosaic index-assets ─────────────────────────────────────────────────────
+
+export interface IndexAssetsOptions {
+  assets: string;
+  extra?: string[];
+}
+
+export async function indexAssetsCommand(opts: IndexAssetsOptions): Promise<void> {
+  const assetsDir = opts.assets;
+  const extra = opts.extra ?? [];
+
+  console.log(`Scanning ${assetsDir}...`);
+  if (extra.length) console.log(`Extra sources: ${extra.join(", ")}`);
+
+  let lastPct = -1;
+  const index = await buildAssetIndex(assetsDir, extra, (done, total) => {
+    const pct = Math.floor((done / total) * 100);
+    if (pct !== lastPct) {
+      process.stdout.write(`\r  ${done}/${total} (${pct}%)`);
+      lastPct = pct;
+    }
+  });
+  process.stdout.write("\n");
+
+  await saveAssetIndex(assetsDir, index);
+  console.log(`Index saved → ${assetsDir}/index.json (${index.entries.length} entries)`);
+}
+
 // ─── mosaic collect-assets ───────────────────────────────────────────────────
 
 export interface CollectAssetsOptions {
@@ -178,17 +211,17 @@ export interface MosaicRenderOptions {
   duration?: number;       // seconds (default: use fps from segments.json)
   fps?: number;
   format?: "mp4" | "gif";
+  mode?: "photo" | "solid";
+  saveFrames?: boolean;    // save JPEG frame sequence alongside output (default true)
+  maxTile?: number;        // max cell size in px; large segments are subdivided into a grid, each cell gets its own asset
+  minTile?: number;        // min cell size in px; small segments are padded up to this size
+  tintTiles?: boolean;     // overlay-blend each tile with its segment color (preserves texture, enforces palette)
+  boostTiles?: boolean;    // parabolic white/black overlay per tile: bright→whiter, dark→darker, mid unaffected
+  boostStrength?: number;  // strength of boost (0–1, default 0.3)
 }
 
 function colorDist(a: [number, number, number], b: [number, number, number]): number {
   return (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2;
-}
-
-function avgColor(buf: Buffer, w: number, h: number): [number, number, number] {
-  let r = 0, g = 0, b = 0;
-  const pixels = w * h;
-  for (let i = 0; i < buf.length; i += 4) { r += buf[i]; g += buf[i+1]; b += buf[i+2]; }
-  return [r/pixels, g/pixels, b/pixels];
 }
 
 interface ClusterSwapState {
@@ -216,13 +249,20 @@ class AssetScheduler {
     return this.rankingCache.get(clusterId)!;
   }
 
-  getAssetIdx(clusterId: number, color: [number, number, number], frameIdx: number): number {
+  // SPREAD: prime offset so sibling segments step through ranked list without clustering
+  private static readonly SPREAD = 7;
+
+  getAssetIdx(
+    clusterId: number,
+    color: [number, number, number],
+    frameIdx: number,
+    siblingIdx: number,   // nth segment of this cluster in the current frame
+  ): number {
     const ranked = this.getRanking(clusterId, color);
 
     if (!this.swapStates.has(clusterId)) {
       const durationFrames = Math.max(1, Math.round(this.fps * (0.2 + Math.random() * 0.8)));
       this.swapStates.set(clusterId, { rankIdx: 0, nextSwapFrame: durationFrames });
-      return ranked[0];
     }
 
     const state = this.swapStates.get(clusterId)!;
@@ -232,7 +272,8 @@ class AssetScheduler {
       state.nextSwapFrame = frameIdx + durationFrames;
     }
 
-    return ranked[state.rankIdx];
+    // Each sibling picks a different position in the ranked list
+    return ranked[(state.rankIdx + siblingIdx * AssetScheduler.SPREAD) % ranked.length];
   }
 }
 
@@ -244,113 +285,267 @@ const MAX_FRAMES_PER_ASSET = 4;
 
 type LoadedAsset = Awaited<ReturnType<typeof loadAsset>>;
 
-async function loadAssets(assetsDir: string): Promise<LoadedAsset[]> {
-  const assetPaths = await scanAssetsDir(assetsDir);
-  if (assetPaths.length === 0) { console.error("No assets found."); process.exit(1); }
+/** Color info paired with pixel data — used by AssetScheduler when index available. */
+export interface IndexedAsset extends LoadedAsset {
+  avgR: number;
+  avgG: number;
+  avgB: number;
+}
 
-  const shuffled = assetPaths.sort(() => Math.random() - 0.5).slice(0, MAX_ASSETS);
-  console.log(`Found ${assetPaths.length} asset(s), using ${shuffled.length}. Extracting frames...`);
+async function loadAssetsFromIndex(assetsDir: string): Promise<IndexedAsset[]> {
+  const index = await loadAssetIndex(assetsDir);
+  if (!index) return [];
 
-  const assets: LoadedAsset[] = [];
-  for (let i = 0; i < shuffled.length; i++) {
-    process.stdout.write(`\r  ${i+1}/${shuffled.length}`);
-    const raw = await loadAsset(shuffled[i], MAX_FRAMES_PER_ASSET);
-    const needsResize = raw.width > ASSET_MAX_DIM || raw.height > ASSET_MAX_DIM;
-    if (needsResize) {
-      const scale = Math.min(ASSET_MAX_DIM / raw.width, ASSET_MAX_DIM / raw.height);
-      const dstW = Math.max(1, Math.round(raw.width * scale));
-      const dstH = Math.max(1, Math.round(raw.height * scale));
-      const resized: Buffer[] = [];
-      for (const frame of raw.frames) {
-        const { data } = await sharp(frame, { raw: { width: raw.width, height: raw.height, channels: 4 } })
-          .resize(dstW, dstH, { fit: "fill" })
-          .raw()
-          .toBuffer({ resolveWithObject: true });
-        resized.push(data);
-      }
-      assets.push({ frames: resized, width: dstW, height: dstH });
-    } else {
-      assets.push(raw);
+  const entries = index.entries.sort(() => Math.random() - 0.5).slice(0, MAX_ASSETS);
+  console.log(`Using index: ${index.entries.length} total, loading ${entries.length} assets from cache...`);
+
+  const assets: IndexedAsset[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    process.stdout.write(`\r  ${i + 1}/${entries.length}`);
+    const e = entries[i];
+    const cacheFull = join(assetsDir, e.cache);
+    try {
+      const { data, info } = await sharp(cacheFull)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      assets.push({
+        frames: [data],
+        width: info.width,
+        height: info.height,
+        avgR: e.avgR,
+        avgG: e.avgG,
+        avgB: e.avgB,
+      });
+    } catch {
+      // skip corrupt cache entries
     }
   }
   process.stdout.write("\n");
   return assets;
 }
 
+async function loadAssets(assetsDir: string): Promise<IndexedAsset[]> {
+  // Fast path: use pre-built index + cached thumbnails
+  const indexed = await loadAssetsFromIndex(assetsDir);
+  if (indexed.length > 0) return indexed;
+
+  // Slow path: scan raw files (no index present)
+  console.log("No index.json found — scanning raw files (slow). Run `mosaic index-assets` first.");
+  const assetPaths = await scanAssetsDir(assetsDir);
+  if (assetPaths.length === 0) { console.error("No assets found."); process.exit(1); }
+
+  const shuffled = assetPaths.sort(() => Math.random() - 0.5).slice(0, MAX_ASSETS);
+  console.log(`Found ${assetPaths.length} asset(s), using ${shuffled.length}. Extracting frames...`);
+
+  const assets: IndexedAsset[] = [];
+  for (let i = 0; i < shuffled.length; i++) {
+    process.stdout.write(`\r  ${i+1}/${shuffled.length}`);
+    const raw = await loadAsset(shuffled[i], MAX_FRAMES_PER_ASSET);
+    const needsResize = raw.width > ASSET_MAX_DIM || raw.height > ASSET_MAX_DIM;
+    let frames = raw.frames;
+    let w = raw.width, h = raw.height;
+    if (needsResize) {
+      const scale = Math.min(ASSET_MAX_DIM / w, ASSET_MAX_DIM / h);
+      w = Math.max(1, Math.round(w * scale));
+      h = Math.max(1, Math.round(h * scale));
+      const resized: Buffer[] = [];
+      for (const frame of frames) {
+        const { data } = await sharp(frame, { raw: { width: raw.width, height: raw.height, channels: 4 } })
+          .resize(w, h, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
+        resized.push(data);
+      }
+      frames = resized;
+    }
+    // Compute avg color from first frame
+    const mid = frames[Math.floor(frames.length / 2)];
+    const avgColor = computeAvgColor(mid, w, h);
+    assets.push({ frames, width: w, height: h, ...avgColor });
+  }
+  process.stdout.write("\n");
+  return assets;
+}
+
+function computeAvgColor(buf: Buffer, w: number, h: number): { avgR: number; avgG: number; avgB: number } {
+  const pixels = w * h;
+  let r = 0, g = 0, b = 0;
+  const stride = buf.length / pixels >= 4 ? 4 : 3;
+  for (let i = 0; i < buf.length; i += stride) { r += buf[i]; g += buf[i+1]; b += buf[i+2]; }
+  return { avgR: r/pixels, avgG: g/pixels, avgB: b/pixels };
+}
+
+async function makeSolidTile(
+  r: number, g: number, b: number,
+  tileW: number, tileH: number,
+  angle: number,
+  width: number, height: number,
+): Promise<sharp.OverlayOptions> {
+  let tileWidth = tileW;
+  let tileHeight = tileH;
+
+  if (angle !== 0) {
+    const radians = Math.abs(angle * Math.PI / 180);
+    const cos = Math.abs(Math.cos(radians)), sin = Math.abs(Math.sin(radians));
+    let rotW = Math.ceil(tileW * cos + tileH * sin);
+    let rotH = Math.ceil(tileW * sin + tileH * cos);
+    if (rotW > width || rotH > height) {
+      const scale = Math.min(width / rotW, height / rotH);
+      rotW = Math.max(1, Math.floor(rotW * scale));
+      rotH = Math.max(1, Math.floor(rotH * scale));
+    }
+    // Create solid tile then rotate it
+    const { data, info } = await sharp({
+      create: { width: tileW, height: tileH, channels: 4, background: { r, g, b, alpha: 255 } },
+    })
+      .rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(rotW, rotH, { fit: "fill" })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    tileWidth = info.width;
+    tileHeight = info.height;
+    return {
+      input: Buffer.from(data.buffer),
+      raw: { width: tileWidth, height: tileHeight, channels: 4 as const },
+      left: Math.round(tileW / 2 - tileWidth / 2),
+      top: Math.round(tileH / 2 - tileHeight / 2),
+    };
+  }
+
+  const { data } = await sharp({
+    create: { width: tileW, height: tileH, channels: 4, background: { r, g, b, alpha: 255 } },
+  }).raw().toBuffer({ resolveWithObject: true });
+  return {
+    input: Buffer.from(data.buffer),
+    raw: { width: tileWidth, height: tileHeight, channels: 4 as const },
+    left: 0, top: 0,
+  };
+}
+
+function avgBrightness(buf: Buffer): number {
+  let sum = 0;
+  const pixels = buf.length / 4;
+  for (let i = 0; i < buf.length; i += 4)
+    sum += (0.299 * buf[i] + 0.587 * buf[i + 1] + 0.114 * buf[i + 2]) / 255;
+  return sum / pixels;
+}
+
+async function boostTileContrast(buf: Buffer, w: number, h: number, strength: number): Promise<Buffer> {
+  const v = avgBrightness(buf);
+  if (v <= 0.5) return buf;  // dark tiles untouched
+  const t = (2 * v - 1) ** 2 * strength;
+  if (t < 0.005) return buf;
+  const alpha = Math.round(t * 255);
+  const bg = { r: 255, g: 255, b: 255, alpha };
+  const { data: overlay } = await sharp({
+    create: { width: w, height: h, channels: 4, background: bg },
+  }).raw().toBuffer({ resolveWithObject: true });
+  const { data } = await sharp(buf, { raw: { width: w, height: h, channels: 4 } })
+    .composite([{ input: overlay, raw: { width: w, height: h, channels: 4 as const }, blend: "over" }])
+    .raw().toBuffer({ resolveWithObject: true });
+  return data;
+}
+
 async function renderSegments(
-  assets: LoadedAsset[],
+  assets: IndexedAsset[],
   segFile: MosaicSegmentsFile,
   output: string,
-  opts: { fps?: number; duration?: number; format?: "mp4" | "gif" },
+  opts: { fps?: number; duration?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; boostTiles?: boolean; boostStrength?: number },
 ): Promise<void> {
   const { width, height, segments: allSegments, fps: fileFps } = segFile;
   const fps = opts.fps ?? fileFps ?? 24;
   const format = opts.format ?? "mp4";
   const totalFrames = Math.round((opts.duration ?? 5) * fps);
+  const mode = opts.mode ?? "photo";
+  const saveFrames = opts.saveFrames ?? true;
 
-  const assetAvgColors: Array<[number, number, number]> = assets.map(a => {
-    const mid = a.frames[Math.floor(a.frames.length / 2)];
-    return avgColor(mid, a.width, a.height);
-  });
-  const scheduler = new AssetScheduler(assetAvgColors, fps);
+  const framesDir = output + ".frames";
+  if (saveFrames) {
+    await mkdir(framesDir, { recursive: true });
+  }
 
-  console.log(`Rendering ${totalFrames} frames (${width}×${height}, ${fps}fps)...`);
+  let scheduler: AssetScheduler | null = null;
+  if (mode === "photo") {
+    const assetAvgColors: Array<[number, number, number]> = assets.map(a =>
+      [a.avgR, a.avgG, a.avgB]
+    );
+    scheduler = new AssetScheduler(assetAvgColors, fps);
+  }
+
+  console.log(`Rendering ${totalFrames} frames (${width}×${height}, ${fps}fps, mode=${mode})...`);
   const stream = openVideoStream(width, height, fps, format, output);
 
   for (let f = 0; f < totalFrames; f++) {
     const segments = allSegments[f % allSegments.length];
 
-    const compositeInputs: sharp.OverlayOptions[] = await mapConcurrent(
-      segments, 2, async (seg) => {
-        const assetIdx = scheduler.getAssetIdx(seg.clusterId, seg.color, f);
+    // Pre-compute sibling index: nth occurrence of each clusterId in this frame
+    const clusterCount = new Map<number, number>();
+    const siblingIndices = segments.map(seg => {
+      const n = clusterCount.get(seg.clusterId) ?? 0;
+      clusterCount.set(seg.clusterId, n + 1);
+      return n;
+    });
+
+    const compositeInputs: sharp.OverlayOptions[] = (await mapConcurrent(
+      segments, 2, async (seg, segIdx): Promise<sharp.OverlayOptions[]> => {
+        const rawW = Math.max(1, Math.min(Math.round(seg.width), width));
+        const rawH = Math.max(1, Math.min(Math.round(seg.height), height));
+        // max-tile: proportional scale-down, preserving aspect ratio and angle
+        const maxScale = opts.maxTile ? Math.min(1, opts.maxTile / rawW, opts.maxTile / rawH) : 1;
+        const tileW = opts.minTile
+          ? Math.max(opts.minTile, Math.round(rawW * maxScale))
+          : Math.max(1, Math.round(rawW * maxScale));
+        const tileH = opts.minTile
+          ? Math.max(opts.minTile, Math.round(rawH * maxScale))
+          : Math.max(1, Math.round(rawH * maxScale));
+        const [sr, sg, sb] = seg.color;
+
+        if (mode === "solid") {
+          const tile = await makeSolidTile(sr, sg, sb, tileW, tileH, seg.angle, width, height);
+          return [{ ...tile, left: Math.round(seg.cx - tileW / 2), top: Math.round(seg.cy - tileH / 2) }];
+        }
+
+
+        // ── single tile ───────────────────────────────────────────────────────
+        const assetIdx = scheduler!.getAssetIdx(seg.clusterId, seg.color, f, siblingIndices[segIdx]);
         const asset = assets[assetIdx];
-        const frameIdx = f % asset.frames.length;
-        const srcBuf = asset.frames[frameIdx];
+        const srcBuf = asset.frames[f % asset.frames.length];
 
-        const tileW = Math.max(1, Math.min(Math.round(seg.width), width));
-        const tileH = Math.max(1, Math.min(Math.round(seg.height), height));
-        let tilePipeline = sharp(srcBuf, {
+        const { data } = await sharp(srcBuf, {
           raw: { width: asset.width, height: asset.height, channels: 4 },
-        }).resize(tileW, tileH, { fit: "fill" });
+        }).resize(tileW, tileH, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        let flatBuf: Buffer = data;
 
-        let tileWidth = tileW;
-        let tileHeight = tileH;
+        if (opts.tintTiles) {
+          const { data: colorBuf } = await sharp({
+            create: { width: tileW, height: tileH, channels: 4, background: { r: sr, g: sg, b: sb, alpha: 255 } },
+          }).raw().toBuffer({ resolveWithObject: true });
+          const { data: tinted } = await sharp(flatBuf, { raw: { width: tileW, height: tileH, channels: 4 } })
+            .composite([{ input: colorBuf, raw: { width: tileW, height: tileH, channels: 4 as const }, blend: "overlay" }])
+            .raw().toBuffer({ resolveWithObject: true });
+          flatBuf = tinted;
+        }
+        if (opts.boostTiles) flatBuf = await boostTileContrast(flatBuf, tileW, tileH, opts.boostStrength ?? 0.3);
 
         if (seg.angle !== 0) {
-          let rotPipeline = tilePipeline
-            .rotate(seg.angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-            .ensureAlpha();
-
           const radians = Math.abs(seg.angle * Math.PI / 180);
           const cos = Math.abs(Math.cos(radians)), sin = Math.abs(Math.sin(radians));
           const rotW = Math.ceil(tileW * cos + tileH * sin);
           const rotH = Math.ceil(tileW * sin + tileH * cos);
+          let rotPipeline = sharp(flatBuf, { raw: { width: tileW, height: tileH, channels: 4 } })
+            .rotate(seg.angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .ensureAlpha();
           if (rotW > width || rotH > height) {
             const scale = Math.min(width / rotW, height / rotH);
             rotPipeline = rotPipeline.resize(Math.max(1, Math.floor(rotW * scale)), Math.max(1, Math.floor(rotH * scale))) as typeof rotPipeline;
           }
-
           const { data: rotated, info: rotInfo } = await rotPipeline.raw().toBuffer({ resolveWithObject: true });
-          tileWidth = rotInfo.width;
-          tileHeight = rotInfo.height;
-
-          return {
-            input: Buffer.from(rotated.buffer),
-            raw: { width: tileWidth, height: tileHeight, channels: 4 as const },
-            left: Math.round(seg.cx - tileWidth / 2),
-            top: Math.round(seg.cy - tileHeight / 2),
-          };
-        } else {
-          const { data: tile } = await tilePipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-          return {
-            input: Buffer.from(tile.buffer),
-            raw: { width: tileWidth, height: tileHeight, channels: 4 as const },
-            left: Math.round(seg.cx - tileWidth / 2),
-            top: Math.round(seg.cy - tileHeight / 2),
-          };
+          return [{ input: Buffer.from(rotated.buffer), raw: { width: rotInfo.width, height: rotInfo.height, channels: 4 as const }, left: Math.round(seg.cx - rotInfo.width / 2), top: Math.round(seg.cy - rotInfo.height / 2) }];
         }
+
+        return [{ input: flatBuf, raw: { width: tileW, height: tileH, channels: 4 as const }, left: Math.round(seg.cx - tileW / 2), top: Math.round(seg.cy - tileH / 2) }];
       }
-    );
+    )).flat();
 
     const COMPOSITE_CHUNK = 200;
     let frameBuffer: Buffer = await sharp({
@@ -367,6 +562,14 @@ async function renderSegments(
     }
 
     await stream.writeFrame(new Uint8ClampedArray(frameBuffer.buffer));
+
+    if (saveFrames) {
+      const framePath = join(framesDir, `frame_${String(f).padStart(5, "0")}.jpg`);
+      await sharp(frameBuffer, { raw: { width, height, channels: 4 } })
+        .jpeg({ quality: 90 })
+        .toFile(framePath);
+    }
+
     if ((f + 1) % 10 === 0 || f === totalFrames - 1)
       process.stdout.write(`\r  ${f+1}/${totalFrames} frames composed`);
   }
@@ -374,12 +577,17 @@ async function renderSegments(
   process.stdout.write("Finalizing video...\n");
   await stream.close();
   console.log(`Mosaic rendered → ${output}`);
+  if (saveFrames) console.log(`Frames saved  → ${framesDir}/`);
 }
 
 export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<void> {
   const segFile: MosaicSegmentsFile = JSON.parse((await readFile(opts.segments)).toString());
-  console.log(`Loading assets from ${opts.assets}...`);
-  const assets = await loadAssets(opts.assets);
+  let assets: IndexedAsset[] = [];
+  if ((opts.mode ?? "photo") === "photo") {
+    console.log(`Loading assets from ${opts.assets}...`);
+    assets = await loadAssets(opts.assets);
+    if (opts.maxTile) console.log(`Tile mode: max ${opts.maxTile}px, repeat fill`);
+  }
   await renderSegments(assets, segFile, opts.output, opts);
 }
 

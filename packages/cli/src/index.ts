@@ -10,6 +10,7 @@ import {
   mosaicRenderCommand,
   mosaicBatchRenderCommand,
   collectAssetsCommand,
+  indexAssetsCommand,
 } from "./commands/mosaic.js";
 
 const program = new Command();
@@ -100,6 +101,18 @@ mosaic
   }) => mosaicFramesCommand(opts));
 
 mosaic
+  .command("index-assets")
+  .description("scan assets dir, build 160×160 cache and save index.json for fast render")
+  .requiredOption("--assets <dir>", "assets directory (same as used in render)")
+  .option(
+    "--extra <dir>",
+    "extra source directory to include (repeatable)",
+    (v: string, acc: string[]) => [...acc, v],
+    [] as string[],
+  )
+  .action((opts: { assets: string; extra: string[] }) => indexAssetsCommand(opts));
+
+mosaic
   .command("collect-assets")
   .description("download images from Lorem Picsum for use as tile assets")
   .requiredOption("-o, --output <dir>", "output directory for downloaded images")
@@ -118,9 +131,16 @@ mosaic
   .option("--duration <s>", "output duration in seconds (default 5)", parseFloat)
   .option("--fps <n>", "frames per second (default 24)", parseInt)
   .option("--format <fmt>", "output format: mp4 or gif (default mp4)")
+  .option("--mode <mode>", "tile mode: photo (default) or solid (flat segment color)")
+  .option("--max-tile <n>", "max cell size px; large segments subdivided into grid, each cell its own asset", parseInt)
+  .option("--min-tile <n>", "min cell size px; small segments padded up to this size", parseInt)
+  .option("--tint-tiles", "overlay-blend each photo tile with its segment color (texture + palette)")
+  .option("--boost-tiles", "parabolic contrast boost per tile: bright→whiter, dark→darker, mid unaffected")
+  .option("--boost-strength <n>", "boost intensity 0–1 (default 0.3)", parseFloat)
+  .option("--no-save-frames", "skip saving JPEG frame sequence alongside output")
   .action((opts: {
     segments: string; assets: string; output: string;
-    duration?: number; fps?: number; format?: "mp4" | "gif";
+    duration?: number; fps?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; boostTiles?: boolean; boostStrength?: number;
   }) => mosaicRenderCommand(opts));
 
 mosaic

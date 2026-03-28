@@ -337,7 +337,7 @@ function rectCorners(
     .map(([lx, ly]) => [cx + lx * cos - ly * sin, cy + lx * sin + ly * cos] as [number, number]);
 }
 
-function drawRotatedRectOutline(
+export function drawRotatedRectOutline(
   out: Uint8ClampedArray, imgW: number, imgH: number,
   cx: number, cy: number, rw: number, rh: number,
   angleDeg: number, r: number, g: number, b: number, a: number,
