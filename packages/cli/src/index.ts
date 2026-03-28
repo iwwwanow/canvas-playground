@@ -135,12 +135,16 @@ mosaic
   .option("--max-tile <n>", "max cell size px; large segments subdivided into grid, each cell its own asset", parseInt)
   .option("--min-tile <n>", "min cell size px; small segments padded up to this size", parseInt)
   .option("--tint-tiles", "overlay-blend each photo tile with its segment color (texture + palette)")
+  .option("--tint-strength <n>", "tint overlay opacity 0–1 (default 1.0)", parseFloat)
+  .option("--gradient-map", "remap luminance: darks→segment color, lights→white")
+  .option("--hue-tiles", "replace photo hue with segment color hue, keep luminance+saturation")
+  .option("--blur-tiles", "blur each tile proportionally to its size (softer, painterly)")
   .option("--boost-tiles", "parabolic contrast boost per tile: bright→whiter, dark→darker, mid unaffected")
   .option("--boost-strength <n>", "boost intensity 0–1 (default 0.3)", parseFloat)
   .option("--no-save-frames", "skip saving JPEG frame sequence alongside output")
   .action((opts: {
     segments: string; assets: string; output: string;
-    duration?: number; fps?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; boostTiles?: boolean; boostStrength?: number;
+    duration?: number; fps?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; tintStrength?: number; gradientMap?: boolean; hueTiles?: boolean; boostTiles?: boolean; boostStrength?: number; blurTiles?: boolean;
   }) => mosaicRenderCommand(opts));
 
 mosaic

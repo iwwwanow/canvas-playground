@@ -1,0 +1,36 @@
+{
+  "mosaic-render": {
+    "hue-photo": {
+      "description": "★ BEST. Заменяет оттенок фото на цвет сегмента, сохраняя яркость и насыщенность. Живописно, без кричащих цветов.",
+      "flags": [
+        "--mode photo",
+        "--hue-tiles"
+      ],
+      "example": "npx tsx packages/cli/src/index.ts mosaic render --segments ./seg/segments.json --assets assets/downloaded --mode photo --hue-tiles --fps 10 --duration 4 --format gif -o out.gif --no-save-frames"
+    },
+    "tint-photo": {
+      "description": "Overlay-тинт: цвет сегмента накладывается поверх фото. tint-strength 0.5 = мягко, 1.0 = агрессивно.",
+      "flags": [
+        "--mode photo",
+        "--tint-tiles",
+        "--tint-strength 0.5"
+      ],
+      "example": "npx tsx packages/cli/src/index.ts mosaic render --segments ./seg/segments.json --assets assets/downloaded --mode photo --tint-tiles --tint-strength 0.5 --fps 10 --duration 4 --format gif -o out.gif --no-save-frames"
+    },
+    "gradient-map": {
+      "description": "Карта градиента: тёмные пиксели → цвет сегмента, светлые → белый. Дуотон-эффект.",
+      "flags": [
+        "--mode photo",
+        "--gradient-map"
+      ],
+      "example": "npx tsx packages/cli/src/index.ts mosaic render --segments ./seg/segments.json --assets assets/downloaded --mode photo --gradient-map --fps 10 --duration 4 --format gif -o out.gif --no-save-frames"
+    },
+    "solid-color": {
+      "description": "Без изображений — чистая игра цвета. Сегменты закрашены постеризованным цветом.",
+      "flags": [
+        "--mode solid"
+      ],
+      "example": "npx tsx packages/cli/src/index.ts mosaic render --segments ./seg/segments.json --assets assets/downloaded --mode solid --fps 10 --duration 4 --format gif -o out.gif --no-save-frames"
+    }
+  }
+}

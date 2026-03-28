@@ -3,7 +3,7 @@ import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { get as httpsGet } from "node:https";
 import sharp from "sharp";
-import { MosaicSegment } from "@xtc-toaster/core";
+import { MosaicSegment, rgbToHsl, hslToRgb } from "@xtc-toaster/core";
 import type { Segment } from "@xtc-toaster/core";
 import { scanAssetsDir, loadAsset } from "../lib/extract-asset-frames.js";
 import { extractFrames } from "../lib/extract-video-frames.js";
@@ -216,8 +216,12 @@ export interface MosaicRenderOptions {
   maxTile?: number;        // max cell size in px; large segments are subdivided into a grid, each cell gets its own asset
   minTile?: number;        // min cell size in px; small segments are padded up to this size
   tintTiles?: boolean;     // overlay-blend each tile with its segment color (preserves texture, enforces palette)
+  tintStrength?: number;   // opacity of tint overlay (0–1, default 1.0)
+  gradientMap?: boolean;   // remap luminance: darks→segment color, lights→white
+  hueTiles?: boolean;      // replace photo hue with segment color hue, keep luminance+saturation
   boostTiles?: boolean;    // parabolic white/black overlay per tile: bright→whiter, dark→darker, mid unaffected
   boostStrength?: number;  // strength of boost (0–1, default 0.3)
+  blurTiles?: boolean;     // blur tiles proportionally to their size (softer, more painterly)
 }
 
 function colorDist(a: [number, number, number], b: [number, number, number]): number {
@@ -422,6 +426,34 @@ async function makeSolidTile(
   };
 }
 
+/** Gradient map: dark pixels → segment color, light pixels → white */
+function applyGradientMap(buf: Buffer, sr: number, sg: number, sb: number): Buffer {
+  const result = Buffer.allocUnsafe(buf.length);
+  for (let i = 0; i < buf.length; i += 4) {
+    const luma = (0.299 * buf[i] + 0.587 * buf[i + 1] + 0.114 * buf[i + 2]) / 255;
+    result[i]   = Math.round(sr + (255 - sr) * luma);
+    result[i+1] = Math.round(sg + (255 - sg) * luma);
+    result[i+2] = Math.round(sb + (255 - sb) * luma);
+    result[i+3] = buf[i+3];
+  }
+  return result;
+}
+
+/** Hue blend: replace photo hue with segment color hue, keep luminance + saturation */
+function applyHueBlend(buf: Buffer, sr: number, sg: number, sb: number): Buffer {
+  const [segH] = rgbToHsl([sr / 255, sg / 255, sb / 255]);
+  const result = Buffer.allocUnsafe(buf.length);
+  for (let i = 0; i < buf.length; i += 4) {
+    const [, s, l] = rgbToHsl([buf[i] / 255, buf[i+1] / 255, buf[i+2] / 255]);
+    const [nr, ng, nb] = hslToRgb([segH, s, l]);
+    result[i]   = Math.round(nr * 255);
+    result[i+1] = Math.round(ng * 255);
+    result[i+2] = Math.round(nb * 255);
+    result[i+3] = buf[i+3];
+  }
+  return result;
+}
+
 function avgBrightness(buf: Buffer): number {
   let sum = 0;
   const pixels = buf.length / 4;
@@ -450,7 +482,7 @@ async function renderSegments(
   assets: IndexedAsset[],
   segFile: MosaicSegmentsFile,
   output: string,
-  opts: { fps?: number; duration?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; boostTiles?: boolean; boostStrength?: number },
+  opts: { fps?: number; duration?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; tintStrength?: number; gradientMap?: boolean; hueTiles?: boolean; boostTiles?: boolean; boostStrength?: number; blurTiles?: boolean },
 ): Promise<void> {
   const { width, height, segments: allSegments, fps: fileFps } = segFile;
   const fps = opts.fps ?? fileFps ?? 24;
@@ -490,49 +522,99 @@ async function renderSegments(
       segments, 2, async (seg, segIdx): Promise<sharp.OverlayOptions[]> => {
         const rawW = Math.max(1, Math.min(Math.round(seg.width), width));
         const rawH = Math.max(1, Math.min(Math.round(seg.height), height));
-        // max-tile: proportional scale-down, preserving aspect ratio and angle
-        const maxScale = opts.maxTile ? Math.min(1, opts.maxTile / rawW, opts.maxTile / rawH) : 1;
-        const tileW = opts.minTile
-          ? Math.max(opts.minTile, Math.round(rawW * maxScale))
-          : Math.max(1, Math.round(rawW * maxScale));
-        const tileH = opts.minTile
-          ? Math.max(opts.minTile, Math.round(rawH * maxScale))
-          : Math.max(1, Math.round(rawH * maxScale));
         const [sr, sg, sb] = seg.color;
 
         if (mode === "solid") {
-          const tile = await makeSolidTile(sr, sg, sb, tileW, tileH, seg.angle, width, height);
-          return [{ ...tile, left: Math.round(seg.cx - tileW / 2), top: Math.round(seg.cy - tileH / 2) }];
+          const tile = await makeSolidTile(sr, sg, sb, rawW, rawH, seg.angle, width, height);
+          return [{ ...tile, left: Math.round(seg.cx - rawW / 2), top: Math.round(seg.cy - rawH / 2) }];
         }
 
 
-        // ── single tile ───────────────────────────────────────────────────────
-        const assetIdx = scheduler!.getAssetIdx(seg.clusterId, seg.color, f, siblingIndices[segIdx]);
-        const asset = assets[assetIdx];
-        const srcBuf = asset.frames[f % asset.frames.length];
+        // ── build tile buffer ─────────────────────────────────────────────────
+        const cellW = opts.maxTile ? Math.min(opts.maxTile, rawW) : rawW;
+        const cellH = opts.maxTile ? Math.min(opts.maxTile, rawH) : rawH;
 
-        const { data } = await sharp(srcBuf, {
-          raw: { width: asset.width, height: asset.height, channels: 4 },
-        }).resize(tileW, tileH, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-        let flatBuf: Buffer = data;
+        // Inline blending helper (sync operations only)
+        const blendSync = (buf: Buffer): Buffer => {
+          let b = buf;
+          if (opts.gradientMap) b = applyGradientMap(b, sr, sg, sb);
+          if (opts.hueTiles)    b = applyHueBlend(b, sr, sg, sb);
+          return b;
+        };
 
+        // Resize one asset frame to target dimensions
+        const resizeAsset = (a: IndexedAsset, w: number, h: number) =>
+          sharp(a.frames[f % a.frames.length], { raw: { width: a.width, height: a.height, channels: 4 } })
+            .resize(w, h, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+
+        let flatBuf: Buffer;
+        let bufW: number, bufH: number;
+
+        if (opts.maxTile && (rawW > cellW || rawH > cellH)) {
+          // Grid subdivision: tile segment area with per-cell tone-matched assets
+          const tiled = Buffer.alloc(rawW * rawH * 4, 0);
+          let cellIdx = 0;
+          for (let ty = 0; ty < rawH; ty += cellH) {
+            const ch = Math.min(cellH, rawH - ty);
+            for (let tx = 0; tx < rawW; tx += cellW) {
+              const cw = Math.min(cellW, rawW - tx);
+              const ci = scheduler!.getAssetIdx(seg.clusterId, seg.color, f, siblingIndices[segIdx] + cellIdx++);
+              const { data: cd } = await resizeAsset(assets[ci], cw, ch);
+              const cb = blendSync(cd);
+              for (let row = 0; row < ch; row++) {
+                cb.copy(tiled, ((ty + row) * rawW + tx) * 4, row * cw * 4, (row + 1) * cw * 4);
+              }
+            }
+          }
+          flatBuf = tiled;
+          bufW = rawW; bufH = rawH;
+        } else {
+          // Single tile: full segment size
+          const ai = scheduler!.getAssetIdx(seg.clusterId, seg.color, f, siblingIndices[segIdx]);
+          const { data } = await resizeAsset(assets[ai], rawW, rawH);
+          flatBuf = blendSync(data);
+          bufW = rawW; bufH = rawH;
+        }
+
+        // Async blending (requires sharp)
         if (opts.tintTiles) {
-          const { data: colorBuf } = await sharp({
-            create: { width: tileW, height: tileH, channels: 4, background: { r: sr, g: sg, b: sb, alpha: 255 } },
-          }).raw().toBuffer({ resolveWithObject: true });
-          const { data: tinted } = await sharp(flatBuf, { raw: { width: tileW, height: tileH, channels: 4 } })
-            .composite([{ input: colorBuf, raw: { width: tileW, height: tileH, channels: 4 as const }, blend: "overlay" }])
-            .raw().toBuffer({ resolveWithObject: true });
-          flatBuf = tinted;
+          const tintStrength = opts.tintStrength ?? 1.0;
+          if (tintStrength > 0) {
+            const { data: colorBuf } = await sharp({
+              create: { width: bufW, height: bufH, channels: 4, background: { r: sr, g: sg, b: sb, alpha: 255 } },
+            }).raw().toBuffer({ resolveWithObject: true });
+            const { data: fullyTinted } = await sharp(flatBuf, { raw: { width: bufW, height: bufH, channels: 4 } })
+              .composite([{ input: colorBuf, raw: { width: bufW, height: bufH, channels: 4 as const }, blend: "overlay" }])
+              .raw().toBuffer({ resolveWithObject: true });
+            if (tintStrength >= 1.0) {
+              flatBuf = fullyTinted;
+            } else {
+              const result = Buffer.allocUnsafe(flatBuf.length);
+              const s = tintStrength, inv = 1 - s;
+              for (let i = 0; i < flatBuf.length; i += 4) {
+                result[i]   = Math.round(flatBuf[i]   * inv + fullyTinted[i]   * s);
+                result[i+1] = Math.round(flatBuf[i+1] * inv + fullyTinted[i+1] * s);
+                result[i+2] = Math.round(flatBuf[i+2] * inv + fullyTinted[i+2] * s);
+                result[i+3] = flatBuf[i+3];
+              }
+              flatBuf = result;
+            }
+          }
         }
-        if (opts.boostTiles) flatBuf = await boostTileContrast(flatBuf, tileW, tileH, opts.boostStrength ?? 0.3);
+        if (opts.boostTiles) flatBuf = await boostTileContrast(flatBuf, bufW, bufH, opts.boostStrength ?? 0.3);
+        if (opts.blurTiles) {
+          const sigma = Math.max(0.3, Math.min(bufW, bufH) / 20);
+          const { data: blurred } = await sharp(flatBuf, { raw: { width: bufW, height: bufH, channels: 4 } })
+            .blur(sigma).raw().toBuffer({ resolveWithObject: true });
+          flatBuf = blurred;
+        }
 
         if (seg.angle !== 0) {
           const radians = Math.abs(seg.angle * Math.PI / 180);
           const cos = Math.abs(Math.cos(radians)), sin = Math.abs(Math.sin(radians));
-          const rotW = Math.ceil(tileW * cos + tileH * sin);
-          const rotH = Math.ceil(tileW * sin + tileH * cos);
-          let rotPipeline = sharp(flatBuf, { raw: { width: tileW, height: tileH, channels: 4 } })
+          const rotW = Math.ceil(bufW * cos + bufH * sin);
+          const rotH = Math.ceil(bufW * sin + bufH * cos);
+          let rotPipeline = sharp(flatBuf, { raw: { width: bufW, height: bufH, channels: 4 } })
             .rotate(seg.angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
             .ensureAlpha();
           if (rotW > width || rotH > height) {
@@ -543,7 +625,7 @@ async function renderSegments(
           return [{ input: Buffer.from(rotated.buffer), raw: { width: rotInfo.width, height: rotInfo.height, channels: 4 as const }, left: Math.round(seg.cx - rotInfo.width / 2), top: Math.round(seg.cy - rotInfo.height / 2) }];
         }
 
-        return [{ input: flatBuf, raw: { width: tileW, height: tileH, channels: 4 as const }, left: Math.round(seg.cx - tileW / 2), top: Math.round(seg.cy - tileH / 2) }];
+        return [{ input: flatBuf, raw: { width: bufW, height: bufH, channels: 4 as const }, left: Math.round(seg.cx - bufW / 2), top: Math.round(seg.cy - bufH / 2) }];
       }
     )).flat();
 
