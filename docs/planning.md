@@ -124,6 +124,52 @@ mosaic render   --segments ./frames/segments.json --assets ./assets/ -o result.m
 - [ ] Web (Go)
 - [ ] Docker compose + GitHub Actions
 
+### Toast 3: `motion-mosaic` 🔜
+
+**Концепция:** мозаика, управляемая движением — скорость смены ассетов и размер тайлов привязаны к optical flow между кадрами. Живые участки кадра «кипят», статичные — замирают.
+
+**Математика и алгоритм:**
+
+1. **Frame diff** (cheap) — попиксельная разница между соседними кадрами:
+   ```
+   diff[i] = |R[i]-R[i-1]| + |G[i]-G[i-1]| + |B[i]-B[i-1]|
+   motionEnergy = mean(diff) / 255   → [0..1]
+   ```
+   Быстро, без внешних зависимостей, работает в Uint8ClampedArray.
+
+2. **Optical flow Farneback** (rich, опционально) — вектора движения между кадрами.
+   Даёт magnitude + direction per pixel. Требует OpenCV (`@techstark/opencv-js`).
+   Из него: скорость (mean magnitude), направление (dominant angle), турбулентность (variance).
+
+3. **Motion map → параметры рендера:**
+   - `motionEnergy` → частота смены ассетов в `AssetScheduler` (высокое движение = быстрый swap)
+   - `motionEnergy` → `min-region` per-frame: высокое движение = мельче тайлы (больше деталей)
+   - Направление flow → угол поворота тайлов (`seg.angle`)
+
+4. **Аудио → видео** (опционально, фаза 5):
+   - Pre-analyze audio: RMS / onset / beat → temporal energy curve
+   - Bind `motionEnergy` к аудиоэнергии → тайлы «бьются» в ритм
+
+**Стек:**
+- Frame diff: чистый Node.js / Uint8ClampedArray (уже есть в core)
+- Optical flow: `@techstark/opencv-js` (WASM, без нативных зависимостей)
+- Audio analysis: `meyda` (JS) или `aubio` CLI (если фаза 5)
+
+**Новые CLI команды:**
+```bash
+mosaic analyze  -i video.mp4 -o motion.json          # считает motion energy per frame
+mosaic render   --motion motion.json --assets ./      # motion-driven swap rate
+```
+
+**Первый MVP (frame diff only):**
+- В `mosaic frames` параллельно считать `frameDiff[]` и сохранять в `segments.json`
+- В `AssetScheduler` использовать `frameDiff[f]` вместо рандомного таймера swap
+- Никаких новых зависимостей
+
+**outputType:** `video`
+
+---
+
 ### Фаза 5 — Beat-synced content factory
 - [ ] **Beat extractor** — читает BPM и таймкоды из mp3/wav (aubio CLI: `aubio tempo`)
   - Выход: `beats.json` — массив таймкодов `[0.5, 1.0, 1.5, ...]`
