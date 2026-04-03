@@ -28,10 +28,13 @@ export function openVideoStream(
   fps: number,
   format: "mp4" | "gif",
   outputPath: string,
+  scale?: number,
 ): VideoStream {
   // libx264 requires even dimensions
   const w = width % 2 === 0 ? width : width + 1;
   const h = height % 2 === 0 ? height : height + 1;
+
+  const scaleFilter = scale ? `scale=${scale}:-1,` : "";
 
   const args = format === "mp4"
     ? [
@@ -39,7 +42,7 @@ export function openVideoStream(
         "-s", `${width}x${height}`,
         "-r", String(fps),
         "-i", "pipe:0",
-        "-vf", `pad=${w}:${h}`,
+        "-vf", `${scaleFilter}pad=${w}:${h}`,
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         outputPath,
@@ -49,7 +52,7 @@ export function openVideoStream(
         "-s", `${width}x${height}`,
         "-r", String(fps),
         "-i", "pipe:0",
-        "-vf", `fps=${fps},split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`,
+        "-vf", `fps=${fps},${scaleFilter}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse=dither=sierra2_4a`,
         outputPath,
       ];
 

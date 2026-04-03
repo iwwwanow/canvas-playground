@@ -142,9 +142,13 @@ mosaic
   .option("--boost-tiles", "parabolic contrast boost per tile: bright→whiter, dark→darker, mid unaffected")
   .option("--boost-strength <n>", "boost intensity 0–1 (default 0.3)", parseFloat)
   .option("--no-save-frames", "skip saving JPEG frame sequence alongside output")
+  .option("--scale <n>", "output width in px (height proportional); useful for small GIFs", parseInt)
+  .option("--color-palette <hex>", "snap segment colors to palette; comma-separated hex values e.g. FF0000,0000FF,FFFF00")
+  .option("--viz-mode [bool]", "polygon fill via visualize() — exact shape, no sharp tiles, fast; --viz-mode false to disable for solid mode")
+  .option("--bg-color <hex>", "background color hex (default 000000 black); e.g. FFFFFF for white")
   .action((opts: {
     segments: string; assets: string; output: string;
-    duration?: number; fps?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; tintStrength?: number; gradientMap?: boolean; hueTiles?: boolean; boostTiles?: boolean; boostStrength?: number; blurTiles?: boolean;
+    duration?: number; fps?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; tintStrength?: number; gradientMap?: boolean; hueTiles?: boolean; boostTiles?: boolean; boostStrength?: number; blurTiles?: boolean; scale?: number; colorPalette?: string; vizMode?: boolean; bgColor?: string;
   }) => mosaicRenderCommand(opts));
 
 mosaic

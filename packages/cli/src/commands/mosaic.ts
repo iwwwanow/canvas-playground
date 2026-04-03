@@ -3,7 +3,7 @@ import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { get as httpsGet } from "node:https";
 import sharp from "sharp";
-import { MosaicSegment, rgbToHsl, hslToRgb } from "@xtc-toaster/core";
+import { MosaicSegment, rgbToHsl, hslToRgb, type Segment } from "@xtc-toaster/core";
 import type { Segment } from "@xtc-toaster/core";
 import { scanAssetsDir, loadAsset } from "../lib/extract-asset-frames.js";
 import { extractFrames } from "../lib/extract-video-frames.js";
@@ -222,6 +222,10 @@ export interface MosaicRenderOptions {
   boostTiles?: boolean;    // parabolic white/black overlay per tile: bright→whiter, dark→darker, mid unaffected
   boostStrength?: number;  // strength of boost (0–1, default 0.3)
   blurTiles?: boolean;     // blur tiles proportionally to their size (softer, more painterly)
+  scale?: number;          // output width in px (height proportional); useful for small GIFs
+  colorPalette?: string;   // snap segment colors to nearest in palette; hex values comma-separated e.g. "FF0000,0000FF,FFFF00"
+  vizMode?: boolean;       // polygon fill via MosaicSegment.visualize() — exact shape fill, no sharp tiles
+  bgColor?: string;        // background color hex (default 000000 black); useful with viz-mode for white canvas
 }
 
 function colorDist(a: [number, number, number], b: [number, number, number]): number {
@@ -478,18 +482,55 @@ async function boostTileContrast(buf: Buffer, w: number, h: number, strength: nu
   return data;
 }
 
+function parseColorPalette(hex: string): Array<[number, number, number]> {
+  return hex.split(",").map(s => {
+    const h = s.trim().replace(/^#/, "");
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)] as [number,number,number];
+  });
+}
+
+function snapToPalette(
+  segments: import("@xtc-toaster/core").Segment[][],
+  palette: Array<[number, number, number]>,
+): void {
+  for (const frame of segments) {
+    for (const seg of frame) {
+      let best = 0, bestD = Infinity;
+      for (let i = 0; i < palette.length; i++) {
+        const d = colorDist(seg.color as [number,number,number], palette[i]);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      seg.color = palette[best];
+    }
+  }
+}
+
 async function renderSegments(
   assets: IndexedAsset[],
   segFile: MosaicSegmentsFile,
   output: string,
-  opts: { fps?: number; duration?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; tintStrength?: number; gradientMap?: boolean; hueTiles?: boolean; boostTiles?: boolean; boostStrength?: number; blurTiles?: boolean },
+  opts: { fps?: number; duration?: number; format?: "mp4" | "gif"; mode?: "photo" | "solid"; saveFrames?: boolean; maxTile?: number; minTile?: number; tintTiles?: boolean; tintStrength?: number; gradientMap?: boolean; hueTiles?: boolean; boostTiles?: boolean; boostStrength?: number; blurTiles?: boolean; scale?: number; colorPalette?: string; vizMode?: boolean },
 ): Promise<void> {
   const { width, height, segments: allSegments, fps: fileFps } = segFile;
+
+  if (opts.colorPalette) {
+    const palette = parseColorPalette(opts.colorPalette);
+    console.log(`Color palette: ${palette.map(([r,g,b]) => `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`).join(", ")}`);
+    snapToPalette(allSegments, palette);
+  }
   const fps = opts.fps ?? fileFps ?? 24;
   const format = opts.format ?? "mp4";
   const totalFrames = Math.round((opts.duration ?? 5) * fps);
   const mode = opts.mode ?? "photo";
   const saveFrames = opts.saveFrames ?? true;
+  // viz-mode: auto-enabled for solid, or when explicitly set
+  const vizMode = (opts.vizMode as unknown) === "false" ? false : (opts.vizMode ?? (mode === "solid"));
+  // bg color: default #CCCCCC (80% gray) in viz-mode, black otherwise
+  const bgColor = opts.bgColor ?? (vizMode ? "CCCCCC" : "000000");
+  const bgHex = bgColor.replace(/^#/, "");
+  const bgR = parseInt(bgHex.slice(0,2), 16);
+  const bgG = parseInt(bgHex.slice(2,4), 16);
+  const bgB = parseInt(bgHex.slice(4,6), 16);
 
   const framesDir = output + ".frames";
   if (saveFrames) {
@@ -497,18 +538,35 @@ async function renderSegments(
   }
 
   let scheduler: AssetScheduler | null = null;
-  if (mode === "photo") {
+  if (mode === "photo" && !vizMode) {
     const assetAvgColors: Array<[number, number, number]> = assets.map(a =>
       [a.avgR, a.avgG, a.avgB]
     );
     scheduler = new AssetScheduler(assetAvgColors, fps);
   }
 
-  console.log(`Rendering ${totalFrames} frames (${width}×${height}, ${fps}fps, mode=${mode})...`);
-  const stream = openVideoStream(width, height, fps, format, output);
+  const scaleLabel = opts.scale ? ` → ${opts.scale}px wide` : "";
+  const vizLabel = vizMode ? ", viz" : "";
+  console.log(`Rendering ${totalFrames} frames (${width}×${height}, ${fps}fps, mode=${mode}${scaleLabel}${vizLabel})...`);
+  const stream = openVideoStream(width, height, fps, format, output, opts.scale);
 
   for (let f = 0; f < totalFrames; f++) {
     const segments = allSegments[f % allSegments.length];
+
+    // ── viz-mode fast path: exact polygon fill, no sharp pipeline ─────────
+    if (vizMode) {
+      const empty = new Uint8ClampedArray(width * height * 4);
+      const vizData = MosaicSegment.visualize(empty, width, height, segments as Segment[]);
+      for (let i = 0; i < vizData.length; i += 4) {
+        if (vizData[i + 3] === 0) {
+          vizData[i] = bgR; vizData[i+1] = bgG; vizData[i+2] = bgB; vizData[i+3] = 255;
+        }
+      }
+      await stream.writeFrame(vizData);
+      if ((f + 1) % 10 === 0 || f === totalFrames - 1)
+        process.stdout.write(`\r  ${f+1}/${totalFrames} frames composed`);
+      continue;
+    }
 
     // Pre-compute sibling index: nth occurrence of each clusterId in this frame
     const clusterCount = new Map<number, number>();
@@ -631,7 +689,7 @@ async function renderSegments(
 
     const COMPOSITE_CHUNK = 200;
     let frameBuffer: Buffer = await sharp({
-      create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+      create: { width, height, channels: 4, background: { r: bgR, g: bgG, b: bgB, alpha: 255 } },
     }).raw().toBuffer();
 
     for (let c = 0; c < compositeInputs.length; c += COMPOSITE_CHUNK) {
@@ -665,7 +723,8 @@ async function renderSegments(
 export async function mosaicRenderCommand(opts: MosaicRenderOptions): Promise<void> {
   const segFile: MosaicSegmentsFile = JSON.parse((await readFile(opts.segments)).toString());
   let assets: IndexedAsset[] = [];
-  if ((opts.mode ?? "photo") === "photo") {
+  const willUseViz = opts.vizMode ?? (opts.mode ?? "photo") === "solid";
+  if ((opts.mode ?? "photo") === "photo" && !willUseViz) {
     console.log(`Loading assets from ${opts.assets}...`);
     assets = await loadAssets(opts.assets);
     if (opts.maxTile) console.log(`Tile mode: max ${opts.maxTile}px, repeat fill`);
