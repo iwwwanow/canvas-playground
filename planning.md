@@ -34,14 +34,14 @@
 
 | скрипт | что делает |
 |--------|-----------|
-| `scripts/split-video.sh <input.mp4> [out_dir] [sec]` | нарезка одного видео на отрезки |
-| `scripts/split-batch.sh [inputs_dir] [out_dir] [sec]` | нарезка всех видео в директории |
+| `scripts/split-video.sh <input.mp4> [out_dir] [min_sec] [max_sec]` | нарезка одного видео на отрезки |
+| `scripts/split-batch.sh [inputs_dir] [out_dir] [min_sec] [max_sec]` | нарезка всех видео в директории |
 | `scripts/mondrian-clip.sh <clip.mp4> [out_dir]` | mondrian-рендер одного клипа |
 | `scripts/mondrian-clip-batch.sh [clips_dir] [out_dir]` | mondrian-рендер всех клипов в директории |
 
 ### Параметры нарезки
 
-- Длина отрезка: **3 сек** (по умолчанию, диапазон 1–5)
+- Длина отрезка: **случайная 1–5 сек** (min/max задаются аргументами)
 - Разрешение: **max 540px** по ширине (`scale=min(iw,540):-2`)
 - Аудио: убирается (`-an`)
 - Кодек: `libx264 crf 23 preset fast`
@@ -64,7 +64,7 @@ batch-out/clips-mondrian/   ← mondrian-рендеры клипов (из mondr
 ### Workflow
 
 ```bash
-# 1. Нарезать все видео на 3-секундные отрезки
+# 1. Нарезать все видео (случайные 1–5 сек)
 ./scripts/split-batch.sh
 
 # 2. Прогнать mondrian по всем клипам
