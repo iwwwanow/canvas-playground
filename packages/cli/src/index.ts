@@ -12,6 +12,7 @@ import {
   collectAssetsCommand,
   indexAssetsCommand,
 } from "./commands/mosaic.js";
+import { speedRemapCommand } from "./commands/speed-remap.js";
 
 const program = new Command();
 
@@ -164,5 +165,22 @@ mosaic
     segments: string[]; assets: string; outputDir: string;
     duration?: number; fps?: number; format?: "mp4" | "gif";
   }) => mosaicBatchRenderCommand(opts));
+
+program
+  .command("speed-remap")
+  .description("retime a video using a speed curve (bezier f-curve, exported from sandbox)")
+  .requiredOption("-i, --input <path>", "input video path")
+  .requiredOption("-o, --output <path>", "output mp4 or gif path")
+  .requiredOption(
+    "--curve <curve>",
+    'speed curve: path to JSON exported from sandbox, or inline "frame:speed,frame:speed,..." e.g. "0:1,48:2,96:0.5"',
+  )
+  .option("--curve-fps <n>", "fps of X axis for inline curve (default 24)", parseInt)
+  .option("--out-fps <n>", "output frames per second (default: same as input)", parseFloat)
+  .option("--out-duration <s>", "max output duration in seconds (default: until input exhausted)", parseFloat)
+  .action((opts: {
+    input: string; output: string; curve: string;
+    curveFps?: number; outFps?: number; outDuration?: number;
+  }) => speedRemapCommand(opts));
 
 program.parse();
