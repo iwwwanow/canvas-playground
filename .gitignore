@@ -19,6 +19,13 @@ batch-out/
 assets/downloaded/
 assets/input/
 
+# Heavy assets (бэкап в ~/Documents/xtc-toaster-backup)
+assets/_misc/
+assets/inputs/*.mp4
+assets/inputs/*.webm
+packages/*/compositions/*/assets/
+packages/sandbox/public/*.webp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

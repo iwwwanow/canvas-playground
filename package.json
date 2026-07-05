@@ -2,11 +2,14 @@
   "name": "xtc-toaster",
   "private": true,
   "version": "0.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "trustedDependencies": [
+    "better-sqlite3",
+    "esbuild"
+  ],
   "scripts": {
-    "sandbox": "pnpm --filter @xtc-toaster/sandbox dev",
-    "sandbox:build": "pnpm --filter @xtc-toaster/sandbox build",
-    "api": "pnpm --filter @xtc-toaster/api dev",
-    "web": "pnpm --filter @xtc-toaster/web dev",
-    "toast": "npx tsx packages/cli/src/index.ts"
+    "web:dev": "bun --filter @xtc-toaster/web dev"
   }
 }
