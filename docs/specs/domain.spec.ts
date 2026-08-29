@@ -7,8 +7,9 @@ class Composition {
   ) {}
 
   // не нравится нейминг. может сразу создавать слой? наверно лучше так. да
-  addLayer(pixelData: Uint8Array) {}
-  duplicateLayer(layer: Layer) {}
+  createLayerFromPixelData(pixelData: ImageRawDataArray): Layer {}
+  createColorLayer(color: Color): Layer {}
+  duplicateLayer(layer: Layer): Layer {}
 
   // - clearLayers()
 
@@ -18,6 +19,7 @@ class Composition {
 class Layer {
   constructor(
     private imageData: ImageRawDataArray,
+    private options: LayerOptoins,
     private effects: Array<Effect>,
   ) {}
 
@@ -25,11 +27,19 @@ class Layer {
   private applyEffects() {}
   // TODO: one of:
   private renderLayer() {}
+  // TODO: one of:
+  private render(): ImageRawDataArray {}
 
   // TODO: or merge it with one method - setOption?
   // TODO: can i init layer with that options?
   // по сути это layerSetting. должно храниться в настройках лейера. вопрос в том - вызывается ли точечно и изолированно?
   setBlendMode(blendMode: BlendMode) {}
+  setOpacity(opacity: Opacity) {}
+  setTransform(Transform: Transform) {}
+
+  addEffect(effect: Effect) {}
+
+  cut(params: CutParams) {}
 
   // TODO: can i init layer with that options?
   setTransform() {}
@@ -44,10 +54,14 @@ class Layer {
 }
 
 class Color {
-  constructor(
-    { hex, rgb, rbga },
-    { hex: HexString, rbg: RgbArray, rgbaArray: RgbaArray },
-  ) {}
+  constructor(rgbaArray: RgbaArray) {}
+
+  static fromHex(hex: HexString): Color {}
+  static fromRgb(rgb: RgbArray): Color {}
+
+  // is it better, thsn getFunction()... signature?
+  get normalized(): RgbArray {}
+  get hex(): HexString {}
 }
 
 // сейчас у меня сделан интерфейс, но походу нужно сделать класс да.
@@ -72,6 +86,31 @@ class Effect {
   ) {}
 }
 
+interface LayerOptions {
+  blendMode: BlendMode;
+  opacity: Opacity;
+  transform: Transform;
+}
+
+type Opacity = number;
+type Transform = {
+  name: TransformName;
+  value: TransformValue;
+};
+
+type CutParams = {
+  name: CutName;
+  value: CutValue;
+};
+
+type CutName = "bla" | "bla2";
+// TODO: rewrite it into generic
+type CutValue = number;
+
+type TransformName = "bla" | "bla2";
+// TODO: detail it
+type TransformValue = number;
+
 // TODO: naming wrong;
 type ImageRawDataArray = Uint8Array;
 type HexString = string;
@@ -82,3 +121,47 @@ type RgbaPixel = [number, number, number, number];
 type BlendMode = "bla" | "bla2";
 
 // TODO: нарежь мне также domain-services исходя из legacy-функционала. просто сигнатуры их и по категориям разбей
+
+// services
+
+// cutters
+// what parameters means? componentIndex, target, tolerance, circular
+const cutHsv = (
+  imageData: ImageRawDataArray,
+  componentIndex,
+  target,
+  tolerance,
+  circular,
+): ImageRawDataArray => {};
+cutHue / cutSaturation / cutValue(data, value);
+// reuse cut-hue
+cutChannel(data, channel);
+
+// composers
+// is we has other blend mode composers?
+alphaCompose(bgData, fgData), addCompose(bgData, fgData);
+
+// reducers
+mergeLayerData(dataLength: number, backgroud: {imageData: ImageRawDataArray, opacity_deprecated: FIX: it must be included on raw data. pixels must be opacity applied,} foreground: similar as bg, fgBlendMod: BlendMode): ImageRawDataArray
+
+// effects
+// all effects from legacy
+
+// is it services or utils? :
+// transforms
+// all transforms from legacy
+
+// ---
+
+// is it services or utils? :
+// math
+// all math from legacy
+
+
+// is it services or utils? :
+// colors
+// all color operatoins from legacy
+
+// is it services or utils? :
+// color-space-utils
+// all color-space-utils operatoins from legacy
