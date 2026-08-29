@@ -3,165 +3,178 @@ class Composition {
   constructor(
     private width: number,
     private height: number,
-    private layers: [Layer],
+    private layers: Array<Layer> = [],
   ) {}
 
-  // не нравится нейминг. может сразу создавать слой? наверно лучше так. да
   createLayerFromPixelData(pixelData: ImageRawDataArray): Layer {}
-  createColorLayer(color: Color): Layer {}
-  duplicateLayer(layer: Layer): Layer {}
+  createBlankLayer(): Layer {} // полностью прозрачный слой (RGBA = 0), под размер композиции
+  createColorLayer(color: Color): Layer {} // createBlankLayer() + layer.fill(color)
+  duplicateLayer(layer: Layer): Layer {} // deep copy: новый буфер (new Uint8ClampedArray(layer.imageData)), ни с чем памятью не делится
 
   // - clearLayers()
 
   render(): ImageRawDataArray {}
 }
 
+interface LayerDimensions {
+  width: number;
+  height: number;
+}
+
 class Layer {
   constructor(
     private imageData: ImageRawDataArray,
-    private options: LayerOptoins,
-    private effects: Array<Effect>,
+    private dimensions: LayerDimensions, // зарезервированные, неизменяемые — сеттеров нет
+    private options: LayerOptions,
   ) {}
 
-  // TODO: one of:
-  private applyEffects() {}
-  // TODO: one of:
-  private renderLayer() {}
-  // TODO: one of:
-  private render(): ImageRawDataArray {}
-
-  // TODO: or merge it with one method - setOption?
-  // TODO: can i init layer with that options?
-  // по сути это layerSetting. должно храниться в настройках лейера. вопрос в том - вызывается ли точечно и изолированно?
   setBlendMode(blendMode: BlendMode) {}
   setOpacity(opacity: Opacity) {}
-  setTransform(Transform: Transform) {}
+  setTransform(transform: Transform) {}
 
-  addEffect(effect: Effect) {}
+  applyEffect(effect: EffectParams) {} // eager: сразу применяется к imageData, ничего не копится
 
-  cut(params: CutParams) {}
-
-  // TODO: can i init layer with that options?
-  setTransform() {}
+  mask(params: MaskParams) {} // hue/saturation/value — RGB как есть, alpha = вес совпадения
+  isolateChannel(channel: Channel) {} // НЕ маска, отдельная операция — см. isolateChannel ниже
 
   fill(color: Color) {}
-  // TODO: is it layer methods or composition?
-  // - cutChannel/cutHue/cutValue/cutSaturation(data, ...) — тонкие прокси к cutters
-
   // - clearLayer()
-  // выглядит как эффект
-  // - addHueNoize({ deviationCoefficient, preserveAlpha }) (private) — RGB→HSL, шум по hue, обратно в RGB
 }
 
 class Color {
-  constructor(rgbaArray: RgbaArray) {}
+  constructor(rgbaArray: RgbaPixel) {}
 
   static fromHex(hex: HexString): Color {}
-  static fromRgb(rgb: RgbArray): Color {}
+  static fromRgb(rgb: RgbPixel): Color {}
+  static fromUintArray(data: ImageRawDataArray, pixelIndex: number): Color {}
 
-  // is it better, thsn getFunction()... signature?
-  get normalized(): RgbArray {}
+  get normalized(): RgbaNormalizedPixel {}
   get hex(): HexString {}
 }
 
-// сейчас у меня сделан интерфейс, но походу нужно сделать класс да.
-// вопрос в том, что такое тогда Color. это цвет одного пикселя или единица в массиве пикселя (красный, синий, зеленый)
-// Pixel (pixel.class.ts) — обёртка одного пикселя
-// - поля: c (Color 0-255), nc (NormalColor 0-1)
-// - constructor(pixelData: number[])
-// - static getDataFromUintArray(pixelIndex, layerData) → [r,g,b,a]
+type Transform =
+  | { name: "translate"; params: { tx: number; ty: number } }
+  | { name: "rotate"; params: { alpha: number } }
+  | { name: "scale"; params: { scaleX: number; scaleY: number } }
+  | { name: "skew"; params: { tx: number; ty: number } };
 
-// это вообще не выглядт как отдельная сущность. на сервисы разбить, да?
-// Transformation (transformation.class.ts) — аффинные трансформации через матрицы
-// - поля: type, params, affineMatrix
-// - constructor({ type, params })
-// - process(data, width, height) — прогоняет все пиксели через матрицу (forward-mapping, есть дыры при round)
-// - setAffineMatrix(type) (private), getSkewMatrix/getScaleMatrix/getRotateMatrix/getTranslateMatrix (private)
+// isolateChannel сюда не входит — не маска, другая операция
+type MaskParams =
+  | { name: "hue"; value: number }
+  | { name: "saturation"; value: number }
+  | { name: "value"; value: number };
 
-class Effect {
-  constructor(
-    name: string,
-    // TODO: prop name?
-    options: Object,
-  ) {}
-}
+type EffectParams = {
+  name: "noize";
+  options: { deviationCoefficient: number; preserveAlpha: boolean };
+};
 
 interface LayerOptions {
-  blendMode: BlendMode;
-  opacity: Opacity;
-  transform: Transform;
+  blendMode?: BlendMode;
+  opacity?: Opacity;
+  transform?: Transform;
 }
 
-type Opacity = number;
-type Transform = {
-  name: TransformName;
-  value: TransformValue;
-};
+enum Channel {
+  Red = "red",
+  Green = "green",
+  Blue = "blue",
+  Alpha = "alpha",
+}
 
-type CutParams = {
-  name: CutName;
-  value: CutValue;
-};
+type BlendMode = "normal" | "add";
+type Opacity = number; // 0-1
 
-type CutName = "bla" | "bla2";
-// TODO: rewrite it into generic
-type CutValue = number;
-
-type TransformName = "bla" | "bla2";
-// TODO: detail it
-type TransformValue = number;
-
-// TODO: naming wrong;
-type ImageRawDataArray = Uint8Array;
+type ImageRawDataArray = Uint8ClampedArray;
 type HexString = string;
-type RgbArray = [RgbPixel];
-type RgbaArray = [RgbaPixel];
 type RgbPixel = [number, number, number];
 type RgbaPixel = [number, number, number, number];
-type BlendMode = "bla" | "bla2";
+type RgbaNormalizedPixel = [number, number, number, number]; // 0-1, с alpha
+type HslPixel = [number, number, number];
+type HsvPixel = [number, number, number];
 
-// TODO: нарежь мне также domain-services исходя из legacy-функционала. просто сигнатуры их и по категориям разбей
+// ── domain-services ─────────────────────────────────────────────────────────
+// Только из методов Layer/Composition. Примитивы на входе/выходе, ничего не
+// знают о Layer/Composition/Color.
 
-// services
-
-// cutters
-// what parameters means? componentIndex, target, tolerance, circular
-const cutHsv = (
-  imageData: ImageRawDataArray,
-  componentIndex,
-  target,
-  tolerance,
-  circular,
+// maskers — RGB не трогают, alpha = вес совпадения (0-255)
+const hsvMask = (
+  data: ImageRawDataArray,
+  componentIndex: 0 | 1 | 2, // 0=hue, 1=saturation, 2=value
+  target: number, // normalized 0-1
+  tolerance: number, // normalized 0-1, половина ширины полосы отбора
+  circular: boolean, // true только для hue — полоса замкнута в кольцо (0 и 360 соседи)
 ): ImageRawDataArray => {};
-cutHue / cutSaturation / cutValue(data, value);
-// reuse cut-hue
-cutChannel(data, channel);
 
-// composers
-// is we has other blend mode composers?
-alphaCompose(bgData, fgData), addCompose(bgData, fgData);
+const hueMask = (data: ImageRawDataArray, hue: number): ImageRawDataArray => {};
+const saturationMask = (data: ImageRawDataArray, saturation: number): ImageRawDataArray => {};
+const valueMask = (data: ImageRawDataArray, value: number): ImageRawDataArray => {};
 
-// reducers
-mergeLayerData(dataLength: number, backgroud: {imageData: ImageRawDataArray, opacity_deprecated: FIX: it must be included on raw data. pixels must be opacity applied,} foreground: similar as bg, fgBlendMod: BlendMode): ImageRawDataArray
+// НЕ маска: RGB заменяется на цвет-индикатор канала, значение канала уходит в alpha.
+// Другое поведение чем у masker'ов — сознательно отдельная функция, не объединяем.
+const isolateChannel = (data: ImageRawDataArray, channel: Channel): ImageRawDataArray => {};
+
+// composers — блендинг двух слоёв
+const alphaCompose = (bgData: ImageRawDataArray, fgData: ImageRawDataArray): ImageRawDataArray => {};
+const addCompose = (bgData: ImageRawDataArray, fgData: ImageRawDataArray): ImageRawDataArray => {};
 
 // effects
-// all effects from legacy
+const addHueNoise = (
+  data: ImageRawDataArray,
+  options: EffectParams["options"],
+): ImageRawDataArray => {};
 
-// is it services or utils? :
 // transforms
-// all transforms from legacy
+const applyAffineTransform = (
+  data: ImageRawDataArray,
+  dimensions: LayerDimensions,
+  transform: Transform,
+): ImageRawDataArray => {};
 
-// ---
+const applyYRotationPerspective = (
+  data: ImageRawDataArray,
+  dimensions: LayerDimensions,
+  angleRad: number,
+  focalLength: number,
+): ImageRawDataArray => {};
 
-// is it services or utils? :
+// reducer — примитивы; opacity уже должна быть запечена в alpha до вызова
+const mergeLayerData = (
+  dataLength: number,
+  bgData: ImageRawDataArray,
+  fgData: ImageRawDataArray,
+  fgBlendMode: BlendMode,
+): ImageRawDataArray => {};
+
+// ── utils ────────────────────────────────────────────────────────────────────
+// Domain-agnostic, лежат уровнем ниже domain-services и ничего доменного не
+// импортируют — только наоборот.
+
 // math
-// all math from legacy
+class Matrix {
+  constructor(
+    private width: number,
+    private height: number,
+    private data: Array<number>,
+  ) {}
 
+  getItem(column: number, row: number): number {}
+  setItem(column: number, row: number, value: number) {}
+  static multiply(a: Matrix, b: Matrix): Matrix {}
+}
 
-// is it services or utils? :
-// colors
-// all color operatoins from legacy
+const alphaComposing = (
+  fgColor: number,
+  fgAlpha: number,
+  bgColor: number,
+  bgAlpha: number,
+  resultAlpha: number,
+): number => {};
 
-// is it services or utils? :
 // color-space-utils
-// all color-space-utils operatoins from legacy
+const hexToRgb = (hex: HexString): RgbPixel => {};
+const hexToRgba = (hex: HexString, alpha?: number): RgbaPixel => {};
+const rgbToHsl = (rgb: RgbPixel): HslPixel => {};
+const hslToRgb = (hsl: HslPixel): RgbPixel => {};
+const rgbToHsv = (rgb: RgbPixel): HsvPixel => {};
+const getChannelIndex = (channel: Channel): number => {};
