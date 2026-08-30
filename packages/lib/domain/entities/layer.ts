@@ -1,4 +1,4 @@
-import { addHueNoise } from "../services/effects";
+import { addHueNoise, boxBlur } from "../services/effects";
 import { hueMask, saturationMask, valueMask, isolateChannel as isolateChannelService } from "../services/maskers";
 import { applyAffineTransform } from "../services/transforms";
 import type { Color } from "./color";
@@ -55,6 +55,9 @@ export class Layer {
     switch (effect.name) {
       case "noize":
         this._imageData = addHueNoise(this._imageData, effect.options);
+        break;
+      case "blur":
+        this._imageData = boxBlur(this._imageData, this.dimensions.width, this.dimensions.height, effect.options.radius);
         break;
     }
   }
