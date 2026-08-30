@@ -52,8 +52,23 @@ const purpleGradientLayer = composition.createLayerFromPixelData(data);
 const purpleColor = Color.fromHex("#FF00FF");
 purpleGradientLayer.mask({ name: "value", value: 10, tolerance: 0.6 });
 purpleGradientLayer.tint(purpleColor);
-purpleGradientLayer.setOpacity(0.2);
-// TODO: rotation move layer
+purpleGradientLayer.setOpacity(0.4);
+
+const widthGapBase = (0.33 / 3) * width;
+const heightGapBase = (0.33 / 3) * height;
+const gapModifier = 0.1;
+const widthGap = widthGapBase * gapModifier;
+const heightGap = heightGapBase * gapModifier;
+const purpleGradientLayerTransformCorners = [
+  { x: 0 + 2 * widthGap, y: 0 + 2 * heightGap },
+  { x: width - 3 * widthGap, y: 0 + 3 * heightGap },
+  { x: width - widthGap, y: height - heightGap },
+  { x: 0, y: height },
+];
+purpleGradientLayer.setTransform({
+  name: "perspective",
+  params: { corners: purpleGradientLayerTransformCorners },
+});
 
 const result = composition.render();
 await rawDataToImageFile(result, { width, height }, outputPath);
