@@ -110,6 +110,55 @@ export const rgbToHsv = ([r, g, b]: RgbPixel): HsvPixel => {
   return [hue * 360, saturation * 100, value * 100];
 };
 
+// D65 reference white
+const D65 = { x: 0.95047, y: 1.0, z: 1.08883 };
+const LAB_DELTA = 6 / 29;
+const LAB_DELTA3 = LAB_DELTA ** 3;
+
+const linearize = (c: number): number =>
+  c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+
+const delinearize = (c: number): number =>
+  c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055;
+
+const labF = (t: number): number =>
+  t > LAB_DELTA3 ? t ** (1 / 3) : t / (3 * LAB_DELTA ** 2) + 4 / 29;
+
+const labFInv = (t: number): number =>
+  t > LAB_DELTA ? t ** 3 : 3 * LAB_DELTA ** 2 * (t - 4 / 29);
+
+// Expects normalized (0-1) RGB. Returns Lab [L 0-100, a, b].
+export const rgbToLab = ([r, g, b]: RgbPixel): [number, number, number] => {
+  const lr = linearize(r);
+  const lg = linearize(g);
+  const lb = linearize(b);
+
+  const x = (0.4124564 * lr + 0.3575761 * lg + 0.1804375 * lb) / D65.x;
+  const y = (0.2126729 * lr + 0.7151522 * lg + 0.0721750 * lb) / D65.y;
+  const z = (0.0193339 * lr + 0.1191920 * lg + 0.9503041 * lb) / D65.z;
+
+  const fy = labF(y);
+  return [116 * fy - 16, 500 * (labF(x) - fy), 200 * (fy - labF(z))];
+};
+
+// Returns normalized (0-1) RGB, clamped.
+export const labToRgb = ([L, a, b]: [number, number, number]): RgbPixel => {
+  const fy = (L + 16) / 116;
+  const x = D65.x * labFInv(fy + a / 500);
+  const y = D65.y * labFInv(fy);
+  const z = D65.z * labFInv(fy - b / 200);
+
+  const lr =  3.2404542 * x - 1.5371385 * y - 0.4985314 * z;
+  const lg = -0.9692660 * x + 1.8760108 * y + 0.0415560 * z;
+  const lb =  0.0556434 * x - 0.2040259 * y + 1.0572252 * z;
+
+  return [
+    Math.max(0, Math.min(1, delinearize(lr))),
+    Math.max(0, Math.min(1, delinearize(lg))),
+    Math.max(0, Math.min(1, delinearize(lb))),
+  ];
+};
+
 export const getChannelIndex = (channel: Channel): number => {
   switch (channel) {
     case Channel.Red:

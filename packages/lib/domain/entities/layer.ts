@@ -1,5 +1,10 @@
 import { addHueNoise, boxBlur } from "../services/effects";
-import { hueMask, saturationMask, valueMask, isolateChannel as isolateChannelService } from "../services/maskers";
+import {
+  hueMask,
+  saturationMask,
+  valueMask,
+  isolateChannel as isolateChannelService,
+} from "../services/maskers";
 import { applyAffineTransform } from "../services/transforms";
 import type { Color } from "./color";
 import type {
@@ -47,7 +52,11 @@ export class Layer {
 
   setTransform(transform: Transform): void {
     this._options.transform = transform;
-    this._imageData = applyAffineTransform(this._imageData, this.dimensions, transform);
+    this._imageData = applyAffineTransform(
+      this._imageData,
+      this.dimensions,
+      transform,
+    );
   }
 
   // eager: применяется сразу к imageData, ничего не копится
@@ -66,13 +75,25 @@ export class Layer {
   mask(params: MaskParams): void {
     switch (params.name) {
       case "hue":
-        this._imageData = hueMask(this._imageData, params.value, params.tolerance);
+        this._imageData = hueMask(
+          this._imageData,
+          params.value,
+          params.tolerance,
+        );
         break;
       case "saturation":
-        this._imageData = saturationMask(this._imageData, params.value, params.tolerance);
+        this._imageData = saturationMask(
+          this._imageData,
+          params.value,
+          params.tolerance,
+        );
         break;
       case "value":
-        this._imageData = valueMask(this._imageData, params.value, params.tolerance);
+        this._imageData = valueMask(
+          this._imageData,
+          params.value,
+          params.tolerance,
+        );
         break;
     }
   }

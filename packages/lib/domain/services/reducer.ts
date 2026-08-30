@@ -1,4 +1,4 @@
-import { alphaCompose, addCompose } from "./composers";
+import { alphaCompose, addCompose, lchHueCompose } from "./composers";
 import type { BlendMode, ImageRawDataArray } from "../types";
 
 // Opacity уже должна быть запечена в alpha-канал до вызова — редьюсер её не читает.
@@ -15,6 +15,8 @@ export const mergeLayerData = (
   switch (fgBlendMode) {
     case "add":
       return addCompose(bgData, fgData);
+    case "lch-hue":
+      return lchHueCompose(bgData, fgData);
     case "normal":
     default:
       return alphaCompose(bgData, fgData);

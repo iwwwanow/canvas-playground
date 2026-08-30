@@ -5,7 +5,7 @@ export enum Channel {
   Alpha = "alpha",
 }
 
-export type BlendMode = "normal" | "add";
+export type BlendMode = "normal" | "add" | "lch-hue";
 export type Opacity = number; // 0-1
 
 export type ImageRawDataArray = Uint8ClampedArray;
@@ -35,10 +35,9 @@ export type MaskParams =
   | { name: "saturation"; value: number; tolerance?: number }
   | { name: "value"; value: number; tolerance?: number };
 
-export type EffectParams = {
-  name: "noize";
-  options: { deviationCoefficient: number; preserveAlpha: boolean };
-};
+export type EffectParams =
+  | { name: "noize"; options: { deviationCoefficient: number; preserveAlpha: boolean } }
+  | { name: "blur"; options: { radius: number } };
 
 export interface LayerOptions {
   blendMode?: BlendMode;
