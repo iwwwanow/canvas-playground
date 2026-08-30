@@ -32,7 +32,7 @@ const composition = new Composition(width, height);
 const darkGrayGackgroundLayer = composition.createBlankLayer();
 const darkGrayBackgroudColor = Color.fromHex("#a4a4a4");
 darkGrayGackgroundLayer.fill(darkGrayBackgroudColor);
-
+//
 const bluredLayer = composition.createLayerFromPixelData(data);
 bluredLayer.applyEffect({ name: "blur", options: { radius: 2 } });
 bluredLayer.setOpacity(0.6);
@@ -47,6 +47,13 @@ const blueBackgroundColor = Color.fromHex("#00ffdd");
 blueBackgroundLayer.fill(blueBackgroundColor);
 blueBackgroundLayer.setOpacity(0.8);
 blueBackgroundLayer.setBlendMode("lch-hue");
+
+const purpleGradientLayer = composition.createLayerFromPixelData(data);
+const purpleColor = Color.fromHex("#FF00FF");
+purpleGradientLayer.mask({ name: "value", value: 10, tolerance: 0.6 });
+purpleGradientLayer.tint(purpleColor);
+purpleGradientLayer.setOpacity(0.2);
+// TODO: rotation move layer
 
 const result = composition.render();
 await rawDataToImageFile(result, { width, height }, outputPath);
