@@ -18,6 +18,7 @@ batch-out/
 # Downloaded assets (воспроизводятся скриптом scripts/download-pexels.sh)
 assets/downloaded/
 assets/input/
+generated/
 
 # Heavy assets (бэкап в ~/Documents/xtc-toaster-backup)
 assets/_misc/
