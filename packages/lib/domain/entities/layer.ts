@@ -5,7 +5,8 @@ import {
   valueMask,
   isolateChannel as isolateChannelService,
 } from "../services/maskers";
-import { applyAffineTransform } from "../services/transforms";
+import { applyAffineTransform, applyHomographyTransform, homographyFromQuad } from "../services/transforms";
+import { Matrix } from "../utils/matrix";
 import type { Color } from "./color";
 import type {
   BlendMode,
@@ -52,11 +53,15 @@ export class Layer {
 
   setTransform(transform: Transform): void {
     this._options.transform = transform;
-    this._imageData = applyAffineTransform(
-      this._imageData,
-      this.dimensions,
-      transform,
-    );
+    if (transform.name === "homography") {
+      const matrix = new Matrix(3, 3, transform.params.matrix);
+      this._imageData = applyHomographyTransform(this._imageData, this.dimensions, matrix);
+    } else if (transform.name === "perspective") {
+      const matrix = homographyFromQuad(this.dimensions, transform.params.corners);
+      this._imageData = applyHomographyTransform(this._imageData, this.dimensions, matrix);
+    } else {
+      this._imageData = applyAffineTransform(this._imageData, this.dimensions, transform);
+    }
   }
 
   // eager: применяется сразу к imageData, ничего не копится

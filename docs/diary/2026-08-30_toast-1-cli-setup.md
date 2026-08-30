@@ -1,6 +1,6 @@
-# 2026-08-30 — toast-1: CLI, инфраструктура, первый рендер
+# 2026-08-30 — toast-1: CLI, инфраструктура, первый рендер, blur, lch-hue, tint
 
-Первая сессия на ветке `feat/toast-1`. Подняли пакет `toasts`, подключили `lib` как workspace-зависимость, написали CLI и получили первый рендер (hue-маска).
+Первая сессия на ветке `feat/toast-1`. Подняли пакет `toasts`, подключили `lib` как workspace-зависимость, написали CLI и получили первый рендер. Вторая сессия — расширили lib: blur, lch-hue blend mode, tint.
 
 ## Что сделали
 
@@ -57,10 +57,45 @@ layer.mask({ name: "hue", value: 0, tolerance: 0.08 }); // ~29° полоса
 
 Белый фон + слой с hue-маской (red, 0°) → PNG. Работает, выход проверен.
 
+## Вторая сессия — расширение lib
+
+### blur effect
+
+`layer.applyEffect({ name: "blur", options: { radius: N } })` — separable box blur (горизонт. + вертикальный проход), O(n·r). Реализован в `effects.ts`, подключён в `layer.ts` через `this.dimensions`.
+
+`EffectParams` стал union-типом:
+```ts
+| { name: "noize"; options: { deviationCoefficient: number; preserveAlpha: boolean } }
+| { name: "blur"; options: { radius: number } }
+```
+
+### lch-hue blend mode
+
+`layer.setBlendMode("lch-hue")` — берёт Hue из FG-слоя, Lightness и Chroma из BG. Реализован через RGB→Lab→LCh→Lab→RGB. Конвертации `rgbToLab`/`labToRgb` добавлены в `color-space.ts` (sRGB linearization → XYZ D65 → Lab). FG opacity управляет силой эффекта.
+
+### tint
+
+`layer.tint(color)` — заливает RGB фиксированным цветом, **не трогает альфу**. Нужен для работы поверх маски: маска ставит альфа-вес, tint красит цвет не разрушая его.
+
+```ts
+layer.mask({ name: "value", value: 10, tolerance: 0.6 });
+layer.tint(Color.fromHex("#FF00FF")); // сохраняет alpha от маски
+```
+
+### Текущая композиция toast-1
+
+```
+darkGray background
++ blurredLayer (original image, blur r=2, opacity 0.6)
++ lightGray background (opacity 0.8)
++ blueBackground (#00ffdd, lch-hue, opacity 0.8)
++ purpleGradientLayer (value mask 10 ±0.6, tint #FF00FF, opacity 0.2)
+// TODO: смещение слоя
+```
+
 ## Остаток
 
-- Сама композиция toast-1 пока тривиальна (один слой, фиксированный hue=0) — нужно развивать
+- Смещение/трансформация слоя — следующий шаг (в `index.ts` есть `// TODO: rotation move layer`)
 - Нет флага `--output` в CLI
-- Нет флага для hue/tolerance из командной строки
-- `CanvasRenderer` для браузерного вывода — техдолг, не трогали
-- Шаг 4 (Zig) и шаг 8 (npm-пакет) из прошлых сессий — без изменений
+- `CanvasRenderer` для браузерного вывода — техдолг
+- Превью в терминале не работает внутри Zellij (см. `docs/backlog/2026-08-30_zellij-kitty-graphics-protocol.md`)

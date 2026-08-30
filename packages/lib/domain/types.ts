@@ -23,11 +23,17 @@ export interface LayerDimensions {
   readonly height: number;
 }
 
+// Clockwise from top-left: TL, TR, BR, BL
+export type Point2D = { x: number; y: number };
+export type Quad = [Point2D, Point2D, Point2D, Point2D];
+
 export type Transform =
   | { name: "translate"; params: { tx: number; ty: number } }
   | { name: "rotate"; params: { alpha: number } }
   | { name: "scale"; params: { scaleX: number; scaleY: number } }
-  | { name: "skew"; params: { tx: number; ty: number } };
+  | { name: "skew"; params: { tx: number; ty: number } }
+  | { name: "homography"; params: { matrix: number[] } }    // 9 elements, row-major 3×3
+  | { name: "perspective"; params: { corners: Quad } };     // TL TR BR BL in output space
 
 // isolateChannel сюда не входит — не маска, другая операция
 export type MaskParams =
