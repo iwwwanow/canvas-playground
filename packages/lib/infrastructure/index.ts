@@ -1,3 +1,4 @@
+export { assembleGif } from "./assemble-gif";
 import { createCanvas, loadImage } from "canvas";
 import { writeFile } from "fs/promises";
 import type { ImageRawDataArray, LayerDimensions } from "../domain/types";
