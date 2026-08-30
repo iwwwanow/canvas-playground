@@ -5,6 +5,17 @@
     "": {
       "name": "canvas-playground",
     },
+    "packages/lib": {
+      "name": "@xtc-toaster/lib",
+      "version": "0.0.0",
+    },
+    "packages/toasts": {
+      "name": "@xtc-toaster/toasts",
+      "version": "0.0.0",
+      "dependencies": {
+        "@xtc-toaster/lib": "workspace:*",
+      },
+    },
     "packages/web": {
       "name": "@xtc-toaster/web",
       "version": "0.0.0",
@@ -165,6 +176,10 @@
     "@types/resolve": ["@types/resolve@1.20.2", "", {}, "sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q=="],
 
     "@types/trusted-types": ["@types/trusted-types@2.0.7", "", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
+
+    "@xtc-toaster/lib": ["@xtc-toaster/lib@workspace:packages/lib"],
+
+    "@xtc-toaster/toasts": ["@xtc-toaster/toasts@workspace:packages/toasts"],
 
     "@xtc-toaster/web": ["@xtc-toaster/web@workspace:packages/web"],
 

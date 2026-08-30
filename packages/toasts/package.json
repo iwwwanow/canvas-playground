@@ -1,0 +1,8 @@
+{
+  "name": "@xtc-toaster/toasts",
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@xtc-toaster/lib": "workspace:*"
+  }
+}
