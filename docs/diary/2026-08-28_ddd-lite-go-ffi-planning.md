@@ -12,9 +12,11 @@
 
 ## Открытые вопросы
 
-- **Go или Zig для domain-части — не закреплено.** Склоняемся к Zig (нет GC, проще биндинги, домен узкий — только буферная математика), но нужно ещё явно решить перед шагом 2 плана.
-- Тосты остаются в TS или тоже переезжают в Go/Zig как экспортируемые use-case функции — не решено, откладывается до шага «начертить domain».
-- Реальный техдолг, не зависящий от переезда на Go: `Composition` сейчас мешает DOM/canvas-код (infrastructure) с доменной логикой (`layers[]`, render pipeline) — стоит вынести в отдельный `CanvasRenderer`, оставить `Composition` без `document`/`HTMLCanvasElement`.
+- ~~Go или Zig для domain-части~~ — **закрыто 2026-08-29: Zig.**
+- ~~Тосты остаются в TS или тоже переезжают~~ — **закрыто: остаются в TS**, но переписываются под новую сигнатуру `bake(layer: Layer, ...)` (см. выше).
+- ~~mosaic-segment — bounded context или вне скоупа~~ — **закрыто 2026-08-29: вне скоупа, следующей итерацией.** Не зависит от Layer/Composition (работает напрямую с `Uint8ClampedArray` → `Segment[]`), поэтому перенос домена его не блокирует.
+- ~~y-rotation-perspective — заходит в transforms или особняком~~ — **закрыто 2026-08-29: заходит в семейство transforms**, наравне с affine (translate/rotate/scale/skew), отдельной веткой (не через 3×3-матрицу — perspective divide, а не аффинное преобразование).
+- Реальный техдолг, не зависящий от переезда на Go/Zig: `Composition` сейчас мешает DOM/canvas-код (infrastructure) с доменной логикой (`layers[]`, render pipeline) — стоит вынести в отдельный `CanvasRenderer`, оставить `Composition` без `document`/`HTMLCanvasElement`. Всё ещё открыто.
 
 ## Сделано за сессию
 
@@ -22,7 +24,12 @@
 
 ## План пользователя (следующие шаги)
 
-1. Начертить domain — entities, VO, методы (здесь же закрепить: Go или Zig, и судьбу тостов)
-2. Написать на выбранном языке, покрыть тестами
-3. Биндинг-слой
-4. Bun-инфра (dev-loop, package setup)
+**Обновлено 2026-08-29** — детали разбора и обоснования по каждому пункту: `docs/diary/2026-08-29_domain-spec-review.md`.
+
+1. Доделать `docs/specs/domain.spec.ts` с учётом ревью (Pixel+Color слить в один value object, Transformation → чистый сервис, cutters — методы Layer не Composition, `mergedLayerReducer` переписать под примитивы, layers создаются только через `Composition.createLayerFromSource()`/`createColorLayer()`, y-rotation входит в transforms, mosaic-segment — вне скоупа)
+2. Ревью спецификации, подбить детали
+3. Написать домен на TS (референсная реализация) — **с unit-тестами на composers/cutters/transform** (чистые функции, дёшево тестировать); эти же тестовые фикстуры/golden-values переиспользуются на шаге 4 как проверка соответствия Zig-порта
+4. Переписать домен на Zig (1:1 порт)
+5. Биндинг-слой (`bindings/*.binding.ts`, handle-паттерн, contract-test на рассинхрон сигнатур)
+6. Bun-инфра (dev-loop через `watchexec` с полным рестартом процесса — `bun --watch` не отследит `dlopen`-нутый `.so`/shared lib как зависимость; package setup) — отдельный шаг, не часть биндинг-слоя
+7. Протестировать на новом тосте — сквозная проверка проводки end-to-end через весь новый стек
