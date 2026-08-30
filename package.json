@@ -11,7 +11,12 @@
     "esbuild"
   ],
   "scripts": {
+    "typecheck": "tsc -p packages/lib/tsconfig.json && tsc -p packages/toasts/tsconfig.json",
     "web:dev": "bun --filter @xtc-toaster/web dev",
     "toast-1": "bun packages/toasts/src/toasts/toast-1_degas/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^7.0.2"
   }
 }
