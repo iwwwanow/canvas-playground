@@ -50,6 +50,31 @@ export function assembleGif(
   return pipeFrames(frames, width, height, fps, args);
 }
 
+export async function loopVideoTo(
+  inputPath: string,
+  targetSeconds: number,
+  outputPath: string,
+  clipDuration: number
+): Promise<void> {
+  const loops = Math.ceil(targetSeconds / clipDuration) - 1;
+  const args = [
+    "-y",
+    "-stream_loop", String(loops),
+    "-i", inputPath,
+    "-c", "copy",
+    outputPath,
+  ];
+  const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+  await new Promise<void>((resolve, reject) => {
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited ${code}:\n${stderr.slice(-800)}`));
+    });
+  });
+}
+
 export function assembleVideo(
   frames: ImageRawDataArray[],
   width: number,

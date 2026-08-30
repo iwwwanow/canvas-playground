@@ -7,61 +7,54 @@ import {
   rawDataToImageFile,
   assembleGif,
   assembleVideo,
+  loopVideoTo,
 } from "@xtc-toaster/lib";
 import { Color } from "@xtc-toaster/lib";
 import type { ImageRawDataArray, Quad } from "@xtc-toaster/lib";
 
-type Preset = {
-  frameCount: number;
-  fps: number;
-  scale: number;
-  format: "gif" | "mp4";
-};
+type Preset = { scale: number; format: "gif" | "mp4" };
 
 const PRESETS = {
-  preview: { frameCount: 12, fps: 12, scale: 0.25, format: "gif" },
-  hd: { frameCount: 24, fps: 24, scale: 0.5, format: "mp4" },
-  "2k": { frameCount: 36, fps: 24, scale: 1.0, format: "mp4" },
+  preview: { scale: 0.25, format: "gif" },
+  hd:      { scale: 0.5,  format: "mp4" },
+  "2k":    { scale: 1.0,  format: "mp4" },
 } as const satisfies Record<string, Preset>;
+
+const DEFAULT_FPS = 24;
+const DEFAULT_FRAMES = 24;
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
-    input: { type: "string", short: "i" },
+    input:  { type: "string", short: "i" },
     preset: { type: "string", short: "p", default: "preview" },
+    fps:    { type: "string",              default: String(DEFAULT_FPS) },
+    frames: { type: "string", short: "f", default: String(DEFAULT_FRAMES) },
+    loop:   { type: "string", short: "l" },
   },
 });
 
 const presetKey = values.preset as keyof typeof PRESETS;
 if (!(presetKey in PRESETS)) {
-  console.error(
-    `Unknown preset "${presetKey}". Available: ${Object.keys(PRESETS).join(", ")}`,
-  );
+  console.error(`Unknown preset "${presetKey}". Available: ${Object.keys(PRESETS).join(", ")}`);
   process.exit(1);
 }
 const preset = PRESETS[presetKey];
+const fps = parseInt(values.fps!);
+const frameCount = parseInt(values.frames!);
 
 const inputPath =
   values.input ?? resolve(import.meta.dirname, "assets/degas-076.sm.jpg");
 
 const timestamp = Date.now();
-const seqDir = resolve(
-  process.cwd(),
-  `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}`,
-);
-const outPath = resolve(
-  process.cwd(),
-  `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}.${preset.format}`,
-);
+const seqDir  = resolve(process.cwd(), `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}`);
+const outPath = resolve(process.cwd(), `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}.${preset.format}`);
 
 await mkdir(seqDir, { recursive: true });
 
-console.log(`[toast-1/degas] preset=${presetKey} input=${inputPath}`);
+console.log(`[toast-1/degas] preset=${presetKey} fps=${fps} frames=${frameCount} input=${inputPath}`);
 
-const { data, width, height } = await imageFileToRawData(
-  inputPath,
-  preset.scale,
-);
+const { data, width, height } = await imageFileToRawData(inputPath, preset.scale);
 
 console.log(`[toast-1/degas] render size: ${width}×${height}`);
 
@@ -78,9 +71,8 @@ const getTransformCorners = (gapModifier: number = 0.1): Quad => {
   ];
 };
 
-const getBlurRadius = (blurModifier: number): number => {
-  return Math.round((width * blurModifier) / 100);
-};
+const getBlurRadius = (blurModifier: number): number =>
+  Math.round((width * blurModifier) / 100);
 
 const getTransformParams = ({ tx, ty }: { tx: number; ty: number }) => ({
   tx: Math.round(tx * width * 0.01),
@@ -98,10 +90,7 @@ const buildFrame = (frame: number): ImageRawDataArray => {
   bg.fill(darkGrayColor);
 
   const blurred = comp.createLayerFromPixelData(data);
-  blurred.applyEffect({
-    name: "blur",
-    options: { radius: getBlurRadius(0.8) },
-  });
+  blurred.applyEffect({ name: "blur", options: { radius: getBlurRadius(0.48) } });
   blurred.setOpacity(0.8);
 
   const lightGray = comp.createBlankLayer();
@@ -116,56 +105,33 @@ const buildFrame = (frame: number): ImageRawDataArray => {
   const purple = comp.createLayerFromPixelData(data);
   purple.mask({ name: "value", value: 16, tolerance: 0.32 });
   purple.tint(Color.fromHex("#FF00FF"));
-  purple.applyEffect({
-    name: "blur",
-    options: { radius: getBlurRadius(0.24) },
-  });
+  purple.applyEffect({ name: "blur", options: { radius: getBlurRadius(0.24) } });
   purple.setOpacity(0.6);
-  purple.setTransform({
-    name: "perspective",
-    params: { corners: getTransformCorners(-0.2 * frame) },
-  });
-  purple.setTransform({
-    name: "translate",
-    params: getTransformParams({ tx: 2 * frame, ty: -2 * frame }),
-  });
+  purple.setTransform({ name: "perspective", params: { corners: getTransformCorners(-0.2 * frame) } });
+  purple.setTransform({ name: "translate", params: getTransformParams({ tx: 2 * frame, ty: -2 * frame }) });
 
   const red = comp.createLayerFromPixelData(data);
   red.mask({ name: "value", value: 12, tolerance: 0.24 });
   red.tint(Color.fromHex("#FF0000"));
   red.applyEffect({ name: "blur", options: { radius: getBlurRadius(0.1) } });
   red.setOpacity(0.8);
-  red.setTransform({
-    name: "perspective",
-    params: { corners: getTransformCorners(-0.1 * frame) },
-  });
-  red.setTransform({
-    name: "translate",
-    params: getTransformParams({ tx: 1 * frame, ty: -1 * frame }),
-  });
+  red.setTransform({ name: "perspective", params: { corners: getTransformCorners(-0.1 * frame) } });
+  red.setTransform({ name: "translate", params: getTransformParams({ tx: 1 * frame, ty: -1 * frame }) });
 
   const white = comp.createLayerFromPixelData(data);
   white.mask({ name: "value", value: 92, tolerance: 0.16 });
   white.tint(Color.fromHex("#FFFFFF"));
-  white.setTransform({
-    name: "perspective",
-    params: { corners: getTransformCorners(-0.05 * frame) },
-  });
-  white.setTransform({
-    name: "translate",
-    params: getTransformParams({ tx: 1 * frame, ty: -1 * frame }),
-  });
+  white.setTransform({ name: "perspective", params: { corners: getTransformCorners(-0.05 * frame) } });
+  white.setTransform({ name: "translate", params: getTransformParams({ tx: 1 * frame, ty: -1 * frame }) });
 
   return comp.render();
 };
 
 const renderedFrames: ImageRawDataArray[] = [];
 
-for (let i = 0; i < preset.frameCount; i++) {
-  const t = i / (preset.frameCount - 1);
-  console.log(
-    `[toast-1/degas] frame ${i + 1}/${preset.frameCount} (t=${t.toFixed(2)})`,
-  );
+for (let i = 0; i < frameCount; i++) {
+  const t = i / (frameCount - 1);
+  console.log(`[toast-1/degas] frame ${i + 1}/${frameCount} (t=${t.toFixed(2)})`);
 
   const rendered = buildFrame(t);
   renderedFrames.push(rendered);
@@ -176,8 +142,19 @@ for (let i = 0; i < preset.frameCount; i++) {
 
 console.log(`[toast-1/degas] assembling ${preset.format} → ${outPath}`);
 if (preset.format === "gif") {
-  await assembleGif(renderedFrames, width, height, preset.fps, outPath);
+  await assembleGif(renderedFrames, width, height, fps, outPath);
 } else {
-  await assembleVideo(renderedFrames, width, height, preset.fps, outPath);
+  await assembleVideo(renderedFrames, width, height, fps, outPath);
 }
-console.log("[toast-1/degas] done →", outPath);
+
+if (values.loop) {
+  const targetSeconds = parseFloat(values.loop);
+  const clipDuration = frameCount / fps;
+  const ext = preset.format;
+  const loopedPath = outPath.replace(`.${ext}`, `_${targetSeconds}s.${ext}`);
+  console.log(`[toast-1/degas] looping to ${targetSeconds}s → ${loopedPath}`);
+  await loopVideoTo(outPath, targetSeconds, loopedPath, clipDuration);
+  console.log("[toast-1/degas] done →", loopedPath);
+} else {
+  console.log("[toast-1/degas] done →", outPath);
+}
