@@ -93,9 +93,54 @@ darkGray background
 // TODO: смещение слоя
 ```
 
+## Третья сессия — perspective transform, матрица гомографии
+
+### Matrix.inverse
+
+Добавлен `Matrix.inverse(m)` — статический метод, cofactor/adjugate для 3×3. В `matrix.ts`.
+
+### Perspective и homography transforms
+
+Два новых варианта `Transform` в `types.ts`:
+
+```ts
+| { name: "homography"; params: { matrix: number[] } }   // 9 элементов, row-major 3×3
+| { name: "perspective"; params: { corners: Quad } }     // TL TR BR BL по часовой
+```
+
+`Quad = [Point2D, Point2D, Point2D, Point2D]` — тоже в `types.ts`.
+
+В `transforms.ts` добавлены:
+- `gaussianElimination` — решение 8×8 системы с частичным пивотингом
+- `homographyFromPairs` — вычисляет матрицу H из 4 пар src→dst точек
+- `homographyFromQuad(dimensions, corners)` — src-углы берёт из размеров слоя автоматически
+- `applyHomographyTransform` — **backward mapping** (нет дырок, в отличие от старого affine forward)
+
+Конвенция: `point*M` (row-vector слева), перенос в последней строке — как и везде в проекте.
+
+`layer.setTransform` теперь диспатчит `homography` и `perspective` на новый путь, аффинные — по-старому.
+
+### Важные детали
+
+- `identity` Quad: `[{x:0,y:0}, {x:w-1,y:0}, {x:w-1,y:h-1}, {x:0,y:h-1}]`
+- Все 4 угла в одну точку → singular system → crash. Нужен ненулевой четырёхугольник.
+- Blur и translate в абсолютных пикселях — при смене разрешения масштабировать вручную через `width * coefficient`.
+
+### Текущая композиция toast-1
+
+```
+darkGray background
++ blurredLayer (original image, blur radius пропорц. ширине, opacity 0.6)
++ lightGray background (opacity 0.8)
++ blueBackground (#00ffdd, lch-hue, opacity 0.8)
++ purpleGradientLayer (value mask 10 ±0.6, tint #FF00FF, opacity 0.2, perspective corners)
+```
+
 ## Остаток
 
-- Смещение/трансформация слоя — следующий шаг (в `index.ts` есть `// TODO: rotation move layer`)
+- Рефактор toast-1: подобрать финальные углы perspective для purpleGradientLayer, translate слоёв через `width * k`
+- Маска `valueMask` — рассмотреть замену квадратичного спада на Гауссов (`exp(-t²/0.5)`)
 - Нет флага `--output` в CLI
 - `CanvasRenderer` для браузерного вывода — техдолг
 - Превью в терминале не работает внутри Zellij (см. `docs/backlog/2026-08-30_zellij-kitty-graphics-protocol.md`)
+- Интеграция libvips напрямую через `bun:ffi` — см. `docs/backlog/2026-08-30_sharp-libvips-integration.md`
