@@ -25,6 +25,20 @@ await mkdir(outputDir, { recursive: true });
 
 console.log("[toast-1/degas] input:", inputPath);
 
+const getTransformCorners = (gapModifier: number = 0.1) => {
+  const widthGapBase = (0.33 / 3) * width;
+  const heightGapBase = (0.33 / 3) * height;
+  const widthGap = widthGapBase * gapModifier;
+  const heightGap = heightGapBase * gapModifier;
+  const corners = [
+    { x: 0 + 2 * widthGap, y: 0 + 2 * heightGap },
+    { x: width - 3 * widthGap, y: 0 + 3 * heightGap },
+    { x: width - widthGap, y: height - heightGap },
+    { x: 0, y: height },
+  ];
+  return corners;
+};
+
 const { data, width, height } = await imageFileToRawData(inputPath);
 
 const composition = new Composition(width, height);
@@ -48,26 +62,36 @@ blueBackgroundLayer.fill(blueBackgroundColor);
 blueBackgroundLayer.setOpacity(0.8);
 blueBackgroundLayer.setBlendMode("lch-hue");
 
-const purpleGradientLayer = composition.createLayerFromPixelData(data);
+const purpleLayer = composition.createLayerFromPixelData(data);
 const purpleColor = Color.fromHex("#FF00FF");
-purpleGradientLayer.mask({ name: "value", value: 10, tolerance: 0.6 });
-purpleGradientLayer.tint(purpleColor);
-purpleGradientLayer.setOpacity(0.4);
-
-const widthGapBase = (0.33 / 3) * width;
-const heightGapBase = (0.33 / 3) * height;
-const gapModifier = 0.1;
-const widthGap = widthGapBase * gapModifier;
-const heightGap = heightGapBase * gapModifier;
-const purpleGradientLayerTransformCorners = [
-  { x: 0 + 2 * widthGap, y: 0 + 2 * heightGap },
-  { x: width - 3 * widthGap, y: 0 + 3 * heightGap },
-  { x: width - widthGap, y: height - heightGap },
-  { x: 0, y: height },
-];
-purpleGradientLayer.setTransform({
+purpleLayer.mask({ name: "value", value: 10, tolerance: 0.6 });
+purpleLayer.tint(purpleColor);
+purpleLayer.applyEffect({ name: "blur", options: { radius: 0.4 } });
+purpleLayer.setOpacity(0.32);
+purpleLayer.setTransform({
   name: "perspective",
-  params: { corners: purpleGradientLayerTransformCorners },
+  params: { corners: getTransformCorners() },
+});
+
+const redLayer = composition.createLayerFromPixelData(data);
+const redColor = Color.fromHex("#FF0000");
+redLayer.mask({ name: "value", value: 10, tolerance: 0.3 });
+redLayer.tint(redColor);
+redLayer.applyEffect({ name: "blur", options: { radius: 0.2 } });
+redLayer.setOpacity(0.6);
+redLayer.setTransform({
+  name: "perspective",
+  params: { corners: getTransformCorners(0.2) },
+});
+
+const orrangeLayer = composition.createLayerFromPixelData(data);
+const orrangeColor = Color.fromHex("#ff8000");
+orrangeLayer.mask({ name: "value", value: 8, tolerance: 0.24 });
+orrangeLayer.tint(orrangeColor);
+orrangeLayer.setOpacity(0.8);
+orrangeLayer.setTransform({
+  name: "perspective",
+  params: { corners: getTransformCorners(0.4) },
 });
 
 const result = composition.render();
