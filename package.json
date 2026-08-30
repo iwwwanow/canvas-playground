@@ -10,6 +10,7 @@
     "esbuild"
   ],
   "scripts": {
-    "web:dev": "bun --filter @xtc-toaster/web dev"
+    "web:dev": "bun --filter @xtc-toaster/web dev",
+    "toast-1": "bun packages/toasts/src/toasts/toast-1_degas/index.ts"
   }
 }
