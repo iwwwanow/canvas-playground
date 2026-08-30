@@ -1,16 +1,19 @@
-export { assembleGif } from "./assemble-gif";
+export { assembleGif, assembleVideo } from "./assemble-gif";
 import { createCanvas, loadImage } from "canvas";
 import { writeFile } from "fs/promises";
 import type { ImageRawDataArray, LayerDimensions } from "../domain/types";
 
 export async function imageFileToRawData(
-  path: string
+  path: string,
+  scale: number = 1.0
 ): Promise<{ data: ImageRawDataArray } & LayerDimensions> {
   const img = await loadImage(path);
-  const canvas = createCanvas(img.width, img.height);
+  const width = Math.round(img.width * scale);
+  const height = Math.round(img.height * scale);
+  const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0);
-  const { data, width, height } = ctx.getImageData(0, 0, img.width, img.height);
+  ctx.drawImage(img, 0, 0, width, height);
+  const { data } = ctx.getImageData(0, 0, width, height);
   return { data: data as ImageRawDataArray, width, height };
 }
 
