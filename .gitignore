@@ -19,6 +19,7 @@ batch-out/
 assets/downloaded/
 assets/input/
 generated/
+tmp/
 
 # Heavy assets (бэкап в ~/Documents/xtc-toaster-backup)
 assets/_misc/
