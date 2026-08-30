@@ -31,9 +31,9 @@ export type Transform =
 
 // isolateChannel сюда не входит — не маска, другая операция
 export type MaskParams =
-  | { name: "hue"; value: number }
-  | { name: "saturation"; value: number }
-  | { name: "value"; value: number };
+  | { name: "hue"; value: number; tolerance?: number }
+  | { name: "saturation"; value: number; tolerance?: number }
+  | { name: "value"; value: number; tolerance?: number };
 
 export type EffectParams = {
   name: "noize";

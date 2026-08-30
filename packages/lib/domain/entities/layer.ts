@@ -63,13 +63,13 @@ export class Layer {
   mask(params: MaskParams): void {
     switch (params.name) {
       case "hue":
-        this._imageData = hueMask(this._imageData, params.value);
+        this._imageData = hueMask(this._imageData, params.value, params.tolerance);
         break;
       case "saturation":
-        this._imageData = saturationMask(this._imageData, params.value);
+        this._imageData = saturationMask(this._imageData, params.value, params.tolerance);
         break;
       case "value":
-        this._imageData = valueMask(this._imageData, params.value);
+        this._imageData = valueMask(this._imageData, params.value, params.tolerance);
         break;
     }
   }
