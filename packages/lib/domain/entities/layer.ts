@@ -112,4 +112,14 @@ export class Layer {
       this._imageData[i + 3] = a * 255;
     }
   }
+
+  // Как fill, но сохраняет альфу — чтобы работать поверх маски.
+  tint(color: Color): void {
+    const [r, g, b] = color.normalized;
+    for (let i = 0; i < this._imageData.length; i += 4) {
+      this._imageData[i] = r * 255;
+      this._imageData[i + 1] = g * 255;
+      this._imageData[i + 2] = b * 255;
+    }
+  }
 }
