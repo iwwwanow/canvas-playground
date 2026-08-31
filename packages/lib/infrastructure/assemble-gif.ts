@@ -75,6 +75,30 @@ export async function loopVideoTo(
   });
 }
 
+export async function speedUpVideo(
+  inputPath: string,
+  speed: number,
+  outputPath: string
+): Promise<void> {
+  const args = [
+    "-y",
+    "-i", inputPath,
+    "-vf", `setpts=PTS/${speed}`,
+    "-c:v", "libx264",
+    "-pix_fmt", "yuv420p",
+    outputPath,
+  ];
+  const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+  await new Promise<void>((resolve, reject) => {
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited ${code}:\n${stderr.slice(-800)}`));
+    });
+  });
+}
+
 export function assembleVideo(
   frames: ImageRawDataArray[],
   width: number,
