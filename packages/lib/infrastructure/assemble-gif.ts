@@ -53,14 +53,13 @@ export function assembleGif(
 export async function loopVideoTo(
   inputPath: string,
   targetSeconds: number,
-  outputPath: string,
-  clipDuration: number
+  outputPath: string
 ): Promise<void> {
-  const loops = Math.ceil(targetSeconds / clipDuration) - 1;
   const args = [
     "-y",
-    "-stream_loop", String(loops),
+    "-stream_loop", "-1",
     "-i", inputPath,
+    "-t", String(targetSeconds),
     "-c", "copy",
     outputPath,
   ];
