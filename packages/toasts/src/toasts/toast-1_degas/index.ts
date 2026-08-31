@@ -7,7 +7,6 @@ import {
   imageFileToRawData,
   rawDataToImageFile,
   assembleVideo,
-  speedUpVideo,
   loopVideoTo,
 } from "@xtc-toaster/lib";
 import { Color } from "@xtc-toaster/lib";
@@ -15,9 +14,12 @@ import type { ImageRawDataArray, Quad } from "@xtc-toaster/lib";
 
 const SCALE = 1.0;
 const FPS = 36;
-const FRAMES = 36;
-const SPEED = 1.5;
-const DURATION = 15;
+const FRAMES = 24;
+const TARGET_DURATION = 15;
+
+const clipDuration = FRAMES / FPS;
+const cycles = Math.round(TARGET_DURATION / clipDuration);
+const exactDuration = cycles * clipDuration;
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
@@ -41,7 +43,6 @@ const slug = `degas_${datePart}-${timePart}_${inputStem}`;
 
 const seqDir = await mkdtemp(resolve(tmpdir(), `${slug}_frames_`));
 const rawVideoPath = resolve(tmpdir(), `${slug}.mp4`);
-const speededPath  = resolve(tmpdir(), `${slug}_x${SPEED}.mp4`);
 
 const outDir  = resolve(process.cwd(), "baked-toasts");
 const outPath = resolve(outDir, `${slug}.mp4`);
@@ -126,7 +127,7 @@ const buildFrame = (frame: number): ImageRawDataArray => {
 const renderedFrames: ImageRawDataArray[] = [];
 
 for (let i = 0; i < FRAMES; i++) {
-  const t = i / (FRAMES - 1);
+  const t = i / FRAMES;
   console.log(`[toast-1/degas] frame ${i + 1}/${FRAMES} (t=${t.toFixed(2)})`);
 
   const rendered = buildFrame(t);
@@ -139,10 +140,7 @@ for (let i = 0; i < FRAMES; i++) {
 console.log(`[toast-1/degas] assembling mp4 → ${rawVideoPath}`);
 await assembleVideo(renderedFrames, width, height, FPS, rawVideoPath);
 
-console.log(`[toast-1/degas] speeding up ${SPEED}x → ${speededPath}`);
-await speedUpVideo(rawVideoPath, SPEED, speededPath);
-
-console.log(`[toast-1/degas] looping to ${DURATION}s → ${outPath}`);
-await loopVideoTo(speededPath, DURATION, outPath);
+console.log(`[toast-1/degas] looping ${cycles} cycles (${exactDuration.toFixed(2)}s) → ${outPath}`);
+await loopVideoTo(rawVideoPath, exactDuration, outPath);
 
 console.log("[toast-1/degas] done →", outPath);
