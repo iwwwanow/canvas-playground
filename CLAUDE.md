@@ -15,29 +15,21 @@ No test framework is set up. There are no linting tools configured.
 
 ## Architecture
 
-A canvas-based image composition playground for pixel-level image processing experiments. Zero production dependencies — uses only native browser Canvas and ImageData APIs.
+A canvas-based image composition engine for pixel-level image processing. Being restructured on branch `refactor/lib` from a single legacy package into a DDD-lite domain library at `packages/lib/` — see `docs/planning.md` for the full port plan (TS domain done → Zig 1:1 port in progress → toasts ported last). The pre-refactor implementation still lives under `legacy/packages/core/lib/` and is being ported function-by-function, not deleted outright.
 
-### Rendering Pipeline
+### Current structure (`packages/lib/`)
 
-Layers are created, processed, then reduced into a final image on canvas:
+Rendering pipeline (source image → pixel subsets → layered composition → merged output) is implemented as pure functions over `ImageRawDataArray` (`Uint8ClampedArray`, 4 bytes/pixel RGBA):
 
-1. **Source image** → loaded into canvas → read as `ImageData` (`Uint8ClampedArray`, 4 bytes/pixel RGBA)
-2. **Cutters** (`/lib/cutters/`) → extract subsets of pixel data by channel or color property (hue, saturation, value)
-3. **Layer** (`/lib/classes/layer.class.ts`) → wraps pixel data with blend mode, opacity, effects, and transform
-4. **Effects** → applied via `Layer.addEffect()` (e.g., `LayerEffect.Noize` for hue noise)
-5. **Reducer** (`/lib/reducers/merged-layer.reducer.ts`) → merges layers pairwise using a composer
-6. **Composers** (`/lib/composers/`) → implement blend modes: `alpha` (normal compositing) and `add` (additive)
-7. **Composition** (`/lib/classes/composition.class.ts`) → orchestrates the whole pipeline, owns the canvas
+- `domain/entities/` — `Color`, `Composition`, `Layer`
+- `domain/services/` — `composers.ts` (blend modes: `alpha` Porter-Duff over, `add` additive), `effects.ts` (currently only `addHueNoise`), `maskers.ts` (HSV-proximity masking + channel isolation — this superseded the old `cutters/` naming), `reducer.ts` (merges layers pairwise via a composer), `transforms.ts` (affine transforms + one hardcoded Y-axis perspective)
+- `domain/utils/` — `alpha-composing.ts`, `color-space.ts` (RGB↔HSL↔HSV), `matrix.ts`, `pixel-io.ts`
+- `infrastructure/` — currently an empty stub. Intended home for adapters to external tools: planned Zig FFI bindings, and (per `docs/backlog/`) candidates like `sharp` for format decode/encode, `paper.js`/`clipper-lib` for vector geometry rasterized into a layer, OpenCV for individual filter primitives. Keep these as thin converter functions (byte-layout/channel-order translation), not wrapper classes — same flat-function style as `domain/services/*.ts`.
+- `application/` — currently an empty stub. Intended home for toasts (use-cases) that combine domain services + infrastructure adapters per composition; legacy equivalent is `legacy/packages/core/lib/toasts/`.
 
-### Key Conventions
+New raster functionality (blend modes, convolution/blur, transform interpolation — see gap-analysis in `docs/planning.md`) is being hand-written in Zig by the maintainer as a deliberate learning exercise, not delegated to an agent; only the 1:1 port of existing TS domain code goes to an agent.
 
-- Colors are normalized to `0–1` range internally, `0–255` in `Uint8ClampedArray` storage
-- Color space utilities live in `/lib/utils/`: RGB↔HSL↔HSV↔hex conversions
-- Blend modes are selected via `BlendMod` enum on each layer
-- Demo compositions live in `/compositions/composition-N/index.ts` and are linked from `index.html`
+### Known Issues
 
-### In-Progress / Known Issues (from planning.md)
-
-- Layer ordering affects the final result but shouldn't — there's a known bug in the compositing math to revisit
-- `transformed-layers` mapper is incomplete
-- Naming: cutters should be called `cut` not `level`
+- `add`-blending in `composers.ts` is order-dependent when 3+ layers stack, because each intermediate result is clamped to `Uint8ClampedArray` (0–255) per `reduce()` step rather than once at the end — `clamp(clamp(a+b)+c) ≠ clamp(clamp(b+c)+a)` on overflow. `alpha` (Porter-Duff over) being order-dependent is expected, not a bug. Diagnosed but not fixed — see `docs/diary/2026-08-30_zig-port-approach-and-toast.md`.
+- `transforms.ts`'s `applyAffineTransform` uses forward-mapping — destination pixels with no mapped source pixel stay transparent (holes). Needs backward-mapping + interpolation. Legacy `mappers/transformed-layers.mapper.ts` not yet ported.
