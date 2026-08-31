@@ -14,8 +14,8 @@ import { Color } from "@xtc-toaster/lib";
 import type { ImageRawDataArray, Quad } from "@xtc-toaster/lib";
 
 const SCALE = 1.0;
-const FPS = 24;
-const FRAMES = 24;
+const FPS = 36;
+const FRAMES = 36;
 const SPEED = 1.5;
 const DURATION = 15;
 
