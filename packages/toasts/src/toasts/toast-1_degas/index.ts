@@ -1,60 +1,57 @@
 import { parseArgs } from "util";
-import { resolve } from "path";
-import { mkdir } from "fs/promises";
+import { resolve, basename, extname } from "path";
+import { mkdtemp, mkdir } from "fs/promises";
+import { tmpdir } from "os";
 import {
   Composition,
   imageFileToRawData,
   rawDataToImageFile,
-  assembleGif,
   assembleVideo,
   loopVideoTo,
 } from "@xtc-toaster/lib";
 import { Color } from "@xtc-toaster/lib";
 import type { ImageRawDataArray, Quad } from "@xtc-toaster/lib";
 
-type Preset = { scale: number; format: "gif" | "mp4" };
+const SCALE = 1.0;
+const FPS = 36;
+const FRAMES = 24;
+const TARGET_DURATION = 15;
 
-const PRESETS = {
-  preview: { scale: 0.25, format: "gif" },
-  hd:      { scale: 0.5,  format: "mp4" },
-  "2k":    { scale: 1.0,  format: "mp4" },
-} as const satisfies Record<string, Preset>;
-
-const DEFAULT_FPS = 24;
-const DEFAULT_FRAMES = 24;
+const clipDuration = FRAMES / FPS;
+const cycles = Math.round(TARGET_DURATION / clipDuration);
+const exactDuration = cycles * clipDuration;
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
-    input:  { type: "string", short: "i" },
-    preset: { type: "string", short: "p", default: "preview" },
-    fps:    { type: "string",              default: String(DEFAULT_FPS) },
-    frames: { type: "string", short: "f", default: String(DEFAULT_FRAMES) },
-    loop:   { type: "string", short: "l" },
+    input: { type: "string", short: "i" },
   },
 });
 
-const presetKey = values.preset as keyof typeof PRESETS;
-if (!(presetKey in PRESETS)) {
-  console.error(`Unknown preset "${presetKey}". Available: ${Object.keys(PRESETS).join(", ")}`);
-  process.exit(1);
-}
-const preset = PRESETS[presetKey];
-const fps = parseInt(values.fps!);
-const frameCount = parseInt(values.frames!);
-
 const inputPath =
-  values.input ?? resolve(import.meta.dirname, "assets/degas-076.sm.jpg");
+  values.input ?? resolve(import.meta.dirname, "assets/degas-076.jpg");
 
-const timestamp = Date.now();
-const seqDir  = resolve(process.cwd(), `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}`);
-const outPath = resolve(process.cwd(), `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}.${preset.format}`);
+const now = new Date();
+const datePart = now.getFullYear().toString()
+  + String(now.getMonth() + 1).padStart(2, "0")
+  + String(now.getDate()).padStart(2, "0");
+const timePart = String(now.getHours()).padStart(2, "0")
+  + String(now.getMinutes()).padStart(2, "0")
+  + String(now.getSeconds()).padStart(2, "0");
+const inputStem = basename(inputPath, extname(inputPath));
+const slug = `degas_${datePart}-${timePart}_${inputStem}`;
 
-await mkdir(seqDir, { recursive: true });
+const seqDir = await mkdtemp(resolve(tmpdir(), `${slug}_frames_`));
+const rawVideoPath = resolve(tmpdir(), `${slug}.mp4`);
 
-console.log(`[toast-1/degas] preset=${presetKey} fps=${fps} frames=${frameCount} input=${inputPath}`);
+const outDir  = resolve(process.cwd(), "baked-toasts");
+const outPath = resolve(outDir, `${slug}.mp4`);
 
-const { data, width, height } = await imageFileToRawData(inputPath, preset.scale);
+await mkdir(outDir, { recursive: true });
+
+console.log(`[toast-1/degas] input=${inputPath}`);
+
+const { data, width, height } = await imageFileToRawData(inputPath, SCALE);
 
 console.log(`[toast-1/degas] render size: ${width}×${height}`);
 
@@ -79,9 +76,9 @@ const getTransformParams = ({ tx, ty }: { tx: number; ty: number }) => ({
   ty: Math.round(ty * height * 0.01),
 });
 
-const darkGrayColor = Color.fromHex("#a4a4a4");
+const darkGrayColor  = Color.fromHex("#a4a4a4");
 const lightGrayColor = Color.fromHex("#ebebeb");
-const blueColor = Color.fromHex("#00ffdd");
+const blueColor      = Color.fromHex("#00ffdd");
 
 const buildFrame = (frame: number): ImageRawDataArray => {
   const comp = new Composition(width, height);
@@ -129,9 +126,9 @@ const buildFrame = (frame: number): ImageRawDataArray => {
 
 const renderedFrames: ImageRawDataArray[] = [];
 
-for (let i = 0; i < frameCount; i++) {
-  const t = i / (frameCount - 1);
-  console.log(`[toast-1/degas] frame ${i + 1}/${frameCount} (t=${t.toFixed(2)})`);
+for (let i = 0; i < FRAMES; i++) {
+  const t = i / FRAMES;
+  console.log(`[toast-1/degas] frame ${i + 1}/${FRAMES} (t=${t.toFixed(2)})`);
 
   const rendered = buildFrame(t);
   renderedFrames.push(rendered);
@@ -140,21 +137,10 @@ for (let i = 0; i < frameCount; i++) {
   await rawDataToImageFile(rendered, { width, height }, framePath);
 }
 
-console.log(`[toast-1/degas] assembling ${preset.format} → ${outPath}`);
-if (preset.format === "gif") {
-  await assembleGif(renderedFrames, width, height, fps, outPath);
-} else {
-  await assembleVideo(renderedFrames, width, height, fps, outPath);
-}
+console.log(`[toast-1/degas] assembling mp4 → ${rawVideoPath}`);
+await assembleVideo(renderedFrames, width, height, FPS, rawVideoPath);
 
-if (values.loop) {
-  const targetSeconds = parseFloat(values.loop);
-  const clipDuration = frameCount / fps;
-  const ext = preset.format;
-  const loopedPath = outPath.replace(`.${ext}`, `_${targetSeconds}s.${ext}`);
-  console.log(`[toast-1/degas] looping to ${targetSeconds}s → ${loopedPath}`);
-  await loopVideoTo(outPath, targetSeconds, loopedPath, clipDuration);
-  console.log("[toast-1/degas] done →", loopedPath);
-} else {
-  console.log("[toast-1/degas] done →", outPath);
-}
+console.log(`[toast-1/degas] looping ${cycles} cycles (${exactDuration.toFixed(2)}s) → ${outPath}`);
+await loopVideoTo(rawVideoPath, exactDuration, outPath);
+
+console.log("[toast-1/degas] done →", outPath);

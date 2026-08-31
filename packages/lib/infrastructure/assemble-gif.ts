@@ -53,15 +53,38 @@ export function assembleGif(
 export async function loopVideoTo(
   inputPath: string,
   targetSeconds: number,
-  outputPath: string,
-  clipDuration: number
+  outputPath: string
 ): Promise<void> {
-  const loops = Math.ceil(targetSeconds / clipDuration) - 1;
   const args = [
     "-y",
-    "-stream_loop", String(loops),
+    "-stream_loop", "-1",
     "-i", inputPath,
+    "-t", String(targetSeconds),
     "-c", "copy",
+    outputPath,
+  ];
+  const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+  await new Promise<void>((resolve, reject) => {
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited ${code}:\n${stderr.slice(-800)}`));
+    });
+  });
+}
+
+export async function speedUpVideo(
+  inputPath: string,
+  speed: number,
+  outputPath: string
+): Promise<void> {
+  const args = [
+    "-y",
+    "-i", inputPath,
+    "-vf", `setpts=PTS/${speed}`,
+    "-c:v", "libx264",
+    "-pix_fmt", "yuv420p",
     outputPath,
   ];
   const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
