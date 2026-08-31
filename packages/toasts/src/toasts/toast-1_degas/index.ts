@@ -8,16 +8,17 @@ import {
   assembleGif,
   assembleVideo,
   loopVideoTo,
+  speedUpVideo,
 } from "@xtc-toaster/lib";
 import { Color } from "@xtc-toaster/lib";
 import type { ImageRawDataArray, Quad } from "@xtc-toaster/lib";
 
-type Preset = { scale: number; format: "gif" | "mp4" };
+type Preset = { scale: number; format: "gif" | "mp4"; speed?: number; duration?: number };
 
 const PRESETS = {
   preview: { scale: 0.25, format: "gif" },
   hd:      { scale: 0.5,  format: "mp4" },
-  "2k":    { scale: 1.0,  format: "mp4" },
+  "2k":    { scale: 1.0,  format: "mp4", speed: 1.5, duration: 15 },
 } as const satisfies Record<string, Preset>;
 
 const DEFAULT_FPS = 24;
@@ -27,7 +28,7 @@ const { values } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
     input:  { type: "string", short: "i" },
-    preset: { type: "string", short: "p", default: "preview" },
+    preset: { type: "string", short: "p", default: "2k" },
     fps:    { type: "string",              default: String(DEFAULT_FPS) },
     frames: { type: "string", short: "f", default: String(DEFAULT_FRAMES) },
     loop:   { type: "string", short: "l" },
@@ -44,7 +45,7 @@ const fps = parseInt(values.fps!);
 const frameCount = parseInt(values.frames!);
 
 const inputPath =
-  values.input ?? resolve(import.meta.dirname, "assets/degas-076.sm.jpg");
+  values.input ?? resolve(import.meta.dirname, "assets/degas-076.jpg");
 
 const timestamp = Date.now();
 const seqDir  = resolve(process.cwd(), `tmp/outputs/sqnc_${timestamp}_degas_${presetKey}`);
@@ -147,14 +148,23 @@ if (preset.format === "gif") {
   await assembleVideo(renderedFrames, width, height, fps, outPath);
 }
 
-if (values.loop) {
-  const targetSeconds = parseFloat(values.loop);
-  const clipDuration = frameCount / fps;
-  const ext = preset.format;
-  const loopedPath = outPath.replace(`.${ext}`, `_${targetSeconds}s.${ext}`);
-  console.log(`[toast-1/degas] looping to ${targetSeconds}s → ${loopedPath}`);
-  await loopVideoTo(outPath, targetSeconds, loopedPath, clipDuration);
-  console.log("[toast-1/degas] done →", loopedPath);
-} else {
-  console.log("[toast-1/degas] done →", outPath);
+const ext = preset.format;
+let finalPath = outPath;
+
+if (preset.speed && preset.speed !== 1 && preset.format !== "gif") {
+  const speededPath = outPath.replace(`.${ext}`, `_x${preset.speed}.${ext}`);
+  console.log(`[toast-1/degas] speeding up ${preset.speed}x → ${speededPath}`);
+  await speedUpVideo(outPath, preset.speed, speededPath);
+  finalPath = speededPath;
 }
+
+const targetDuration = values.loop ? parseFloat(values.loop) : preset.duration;
+if (targetDuration) {
+  const clipDuration = (frameCount / fps) / (preset.speed ?? 1);
+  const loopedPath = finalPath.replace(`.${ext}`, `_${targetDuration}s.${ext}`);
+  console.log(`[toast-1/degas] looping to ${targetDuration}s → ${loopedPath}`);
+  await loopVideoTo(finalPath, targetDuration, loopedPath, clipDuration);
+  finalPath = loopedPath;
+}
+
+console.log("[toast-1/degas] done →", finalPath);
